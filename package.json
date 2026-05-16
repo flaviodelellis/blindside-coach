@@ -7,19 +7,15 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "setup-assets": "node scripts/setup-vendor-assets.mjs",
-    "postinstall": "node scripts/setup-vendor-assets.mjs"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@jspsych/plugin-fullscreen": "^2.1.0",
     "@jspsych/plugin-html-button-response": "^2.1.0",
     "@jspsych/plugin-html-keyboard-response": "^2.1.0",
-    "eyegestures": "^1.0.0",
     "jspsych": "^8.2.3",
     "react": "^19.2.6",
-    "react-dom": "^19.2.6",
-    "webgazer": "^3.5.3"
+    "react-dom": "^19.2.6"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

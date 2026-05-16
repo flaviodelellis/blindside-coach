@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import type {
-  GazeValidation,
   NormalizedPoint,
   TachistoscopicExercise,
   TachistoscopicTrial,
@@ -10,12 +9,6 @@ import { pickWords } from "../../lib/wordLibrary";
 import { makeRng } from "../../lib/rng";
 import { resolveDuration, resolvePosition } from "../../lib/runtime";
 import { useT } from "../../i18n";
-import { GazeCalibration } from "../../components/GazeCalibration";
-import {
-  type GazeSample,
-  stopWebGazer,
-  subscribeGaze,
-} from "../../lib/webgazer";
 
 type Config = TachistoscopicExercise["config"];
 
@@ -35,13 +28,7 @@ type TrialParam = {
   iti_ms: number;
 };
 
-type Phase =
-  | "instructions"
-  | "calibrating"
-  | "iti"
-  | "flash"
-  | "awaiting"
-  | "done";
+type Phase = "instructions" | "iti" | "flash" | "awaiting" | "done";
 
 function normalize(s: string): string {
   return s.trim().toLocaleLowerCase("it");
@@ -69,11 +56,6 @@ export function TachistoscopicRunner({
     }));
   }, [config]);
 
-  const gazeCfg = config.gaze_validation;
-  const gazeEnabled = !!gazeCfg?.enabled;
-  const zoneRadiusPx = gazeCfg?.zone_radius_px ?? 150;
-  const breakThreshold = gazeCfg?.break_threshold_fraction ?? 0.3;
-
   const [trialIdx, setTrialIdx] = useState(0);
   const [phase, setPhase] = useState<Phase>("instructions");
   const [nRepetitions, setNRepetitions] = useState(0);
@@ -83,27 +65,8 @@ export function TachistoscopicRunner({
   const flashStartRef = useRef<number>(0);
   const flashEndRef = useRef<number>(0);
   const trialsOutRef = useRef<TachistoscopicTrial[]>([]);
-  const flashSamplesRef = useRef<GazeSample[]>([]);
-  const [liveGaze, setLiveGaze] = useState<GazeSample | null>(null);
 
   const cur = params[trialIdx];
-
-  useEffect(() => {
-    if (!gazeEnabled) return;
-    const unsub = subscribeGaze((s) => {
-      setLiveGaze(s);
-      if (phase === "flash") {
-        flashSamplesRef.current.push(s);
-      }
-    });
-    return unsub;
-  }, [gazeEnabled, phase]);
-
-  useEffect(() => {
-    return () => {
-      if (gazeEnabled) stopWebGazer();
-    };
-  }, [gazeEnabled]);
 
   // ITI → flash transition
   useEffect(() => {
@@ -118,7 +81,6 @@ export function TachistoscopicRunner({
   // flash → awaiting transition
   useEffect(() => {
     if (phase !== "flash" || !cur) return;
-    flashSamplesRef.current = [];
     const id = setTimeout(() => {
       flashEndRef.current = performance.now();
       setPhase("awaiting");
@@ -138,14 +100,6 @@ export function TachistoscopicRunner({
   };
 
   const start = () => {
-    if (gazeEnabled) {
-      setPhase("calibrating");
-      return;
-    }
-    beginTrials();
-  };
-
-  const beginTrials = () => {
     startedAtRef.current = new Date().toISOString();
     startedPerfRef.current = performance.now();
     setNRepetitions(0);
@@ -159,14 +113,6 @@ export function TachistoscopicRunner({
 
   const recordAndAdvance = (response?: TachistoscopicTrial["response"]) => {
     if (!cur) return;
-    const gaze_validation = gazeEnabled
-      ? computeGazeValidation(
-          flashSamplesRef.current,
-          config.fixation.position_norm,
-          zoneRadiusPx,
-          breakThreshold,
-        )
-      : undefined;
     const t: TachistoscopicTrial = {
       trial_id: cur.trial_id,
       t_start_ms: Math.round(flashStartRef.current - startedPerfRef.current),
@@ -180,7 +126,6 @@ export function TachistoscopicRunner({
       ),
       n_repetitions: nRepetitions,
       response,
-      gaze_validation,
     };
     trialsOutRef.current.push(t);
     setNRepetitions(0);
@@ -229,43 +174,19 @@ export function TachistoscopicRunner({
     );
   }
 
-  if (phase === "calibrating") {
-    return (
-      <GazeCalibration
-        onDone={beginTrials}
-        onCancel={() => {
-          stopWebGazer();
-          onCancel();
-        }}
-      />
-    );
-  }
-
   if (!cur) return null;
 
   const isClinician = config.response_mode !== "patient_types";
 
-  const fixationCenter = fixationCenterPx(config.fixation.position_norm);
-
   return (
     <div className="tach-host" style={{ background: config.background_color }}>
       <Fixation config={config} />
-      {gazeEnabled && (
-        <FixationZone
-          x={fixationCenter.x}
-          y={fixationCenter.y}
-          radius={zoneRadiusPx}
-        />
-      )}
       {phase === "flash" && (
         <WordDisplay
           word={cur.word}
           position={cur.position_norm}
           config={config}
         />
-      )}
-      {gazeEnabled && liveGaze && (
-        <GazeOverlay x={liveGaze.x} y={liveGaze.y} />
       )}
       {isClinician && (
         <TinyCounter idx={trialIdx + 1} total={params.length} />
@@ -603,95 +524,6 @@ function PatientInputPanel({
         {t("common.endSession")}
       </button>
     </div>
-  );
-}
-
-function fixationCenterPx(p: NormalizedPoint): { x: number; y: number } {
-  return {
-    x: p.x * window.innerWidth,
-    y: p.y * window.innerHeight,
-  };
-}
-
-function computeGazeValidation(
-  samples: GazeSample[],
-  fixationNorm: NormalizedPoint,
-  zoneRadiusPx: number,
-  breakThreshold: number,
-): GazeValidation {
-  const c = fixationCenterPx(fixationNorm);
-  if (samples.length === 0) {
-    return {
-      n_samples: 0,
-      fraction_outside_zone: 0,
-      max_deviation_px: 0,
-      mean_deviation_px: 0,
-      fixation_break: false,
-    };
-  }
-  let outside = 0;
-  let maxDev = 0;
-  let sumDev = 0;
-  for (const s of samples) {
-    const dx = s.x - c.x;
-    const dy = s.y - c.y;
-    const d = Math.sqrt(dx * dx + dy * dy);
-    if (d > zoneRadiusPx) outside += 1;
-    if (d > maxDev) maxDev = d;
-    sumDev += d;
-  }
-  const fraction = outside / samples.length;
-  return {
-    n_samples: samples.length,
-    fraction_outside_zone: fraction,
-    max_deviation_px: Math.round(maxDev),
-    mean_deviation_px: Math.round(sumDev / samples.length),
-    fixation_break: fraction > breakThreshold,
-  };
-}
-
-function FixationZone({
-  x,
-  y,
-  radius,
-}: {
-  x: number;
-  y: number;
-  radius: number;
-}) {
-  return (
-    <div
-      style={{
-        position: "fixed",
-        left: x - radius,
-        top: y - radius,
-        width: radius * 2,
-        height: radius * 2,
-        borderRadius: "50%",
-        border: "1px dashed rgba(120, 180, 255, 0.4)",
-        pointerEvents: "none",
-      }}
-    />
-  );
-}
-
-function GazeOverlay({ x, y }: { x: number; y: number }) {
-  return (
-    <div
-      style={{
-        position: "fixed",
-        left: x - 10,
-        top: y - 10,
-        width: 20,
-        height: 20,
-        borderRadius: "50%",
-        background: "rgba(255, 80, 80, 0.55)",
-        boxShadow: "0 0 0 2px rgba(255, 80, 80, 0.85)",
-        pointerEvents: "none",
-        zIndex: 9999,
-        transition: "left 80ms linear, top 80ms linear",
-      }}
-    />
   );
 }
 

@@ -194,19 +194,6 @@ const it: Dict = {
   "grid.hint.uniform":
     "{n} cella/e attiva/e. Gli stimoli appariranno con uguale probabilità in una di esse.",
   "grid.fix.label": "cella di fissazione (non selezionabile)",
-
-  // gaze validation
-  "tach.field.gaze_validation": "Validazione fissazione (webcam)",
-  "tach.hint.gaze_validation":
-    "Usa la webcam per rilevare se lo sguardo lascia la croce centrale. Richiede una calibrazione iniziale.",
-  "gaze.cal.starting.title": "Avvio webcam…",
-  "gaze.cal.starting.body":
-    "Concedi l'accesso alla telecamera quando richiesto.",
-  "gaze.cal.error.title": "Impossibile avviare l'eye tracking",
-  "gaze.cal.error.body":
-    "Verifica i permessi della webcam e riprova.",
-  "gaze.cal.hint":
-    "Calibrazione: guarda il punto e cliccaci sopra 5 volte. Punto {idx} di {tot}.",
 };
 
 const en: Dict = {
@@ -378,17 +365,6 @@ const en: Dict = {
   "grid.hint.uniform":
     "{n} active cell(s). Stimuli will appear with equal probability in one of them.",
   "grid.fix.label": "fixation cell (not selectable)",
-
-  "tach.field.gaze_validation": "Fixation validation (webcam)",
-  "tach.hint.gaze_validation":
-    "Uses the webcam to detect if gaze leaves the central cross. Requires an initial calibration.",
-  "gaze.cal.starting.title": "Starting webcam…",
-  "gaze.cal.starting.body": "Grant camera access when prompted.",
-  "gaze.cal.error.title": "Could not start eye tracking",
-  "gaze.cal.error.body":
-    "Check webcam permissions and try again.",
-  "gaze.cal.hint":
-    "Calibration: look at the dot and click it 5 times. Point {idx} of {tot}.",
 };
 
 const DICTIONARIES: Record<Lang, Dict> = { it, en };

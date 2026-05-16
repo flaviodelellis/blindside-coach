@@ -106,14 +106,6 @@ export type TachistoscopicWordPool =
       pseudoword_ratio?: number;
     };
 
-export type GazeValidation = {
-  n_samples: number;
-  fraction_outside_zone: number;
-  max_deviation_px: number;
-  mean_deviation_px: number;
-  fixation_break: boolean;
-};
-
 export type TachistoscopicTrial = {
   trial_id: number;
   t_start_ms: number;
@@ -130,13 +122,6 @@ export type TachistoscopicTrial = {
     recognition_correct?: boolean;
     rt_ms?: number;
   };
-  gaze_validation?: GazeValidation;
-};
-
-export type GazeValidationConfig = {
-  enabled: boolean;
-  zone_radius_px: number;
-  break_threshold_fraction: number;
 };
 
 export type TachistoscopicExercise = {
@@ -157,7 +142,6 @@ export type TachistoscopicExercise = {
     fixation_check?: FixationCheckConfig;
     feedback: FeedbackConfig;
     random_seed?: number;
-    gaze_validation?: GazeValidationConfig;
   };
   trials: TachistoscopicTrial[];
 };

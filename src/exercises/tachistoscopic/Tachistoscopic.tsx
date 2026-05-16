@@ -40,7 +40,6 @@ type FormState = {
   include_pseudowords: boolean;
   pseudoword_ratio: number;
   patient_self_test: boolean;
-  gaze_validation: boolean;
   random_seed: string;
 };
 
@@ -57,7 +56,6 @@ const DEFAULT_FORM: FormState = {
   include_pseudowords: true,
   pseudoword_ratio: 0.3,
   patient_self_test: false,
-  gaze_validation: false,
   random_seed: "",
 };
 
@@ -107,13 +105,6 @@ function configFromForm(form: FormState): Config {
     },
     feedback: {},
     random_seed: seed,
-    gaze_validation: form.gaze_validation
-      ? {
-          enabled: true,
-          zone_radius_px: 150,
-          break_threshold_fraction: 0.3,
-        }
-      : undefined,
   };
 }
 
@@ -252,20 +243,6 @@ function ConfigureForm({
                   {t("tach.field.patient_mode")}
                 </label>
                 <p className="hint">{t("tach.hint.patient_mode")}</p>
-              </div>
-              <div className="form-row full checkbox">
-                <input
-                  id="gaze_validation"
-                  type="checkbox"
-                  checked={form.gaze_validation}
-                  onChange={(e) =>
-                    update("gaze_validation", e.target.checked)
-                  }
-                />
-                <label htmlFor="gaze_validation">
-                  {t("tach.field.gaze_validation")}
-                </label>
-                <p className="hint">{t("tach.hint.gaze_validation")}</p>
               </div>
             </section>
 
