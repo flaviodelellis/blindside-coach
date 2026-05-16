@@ -1,0 +1,131 @@
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 4rem 1.5rem;
+}
+
+.page header {
+  margin-bottom: 3rem;
+}
+
+.subtitle {
+  color: var(--text);
+  margin-top: 0.5rem;
+}
+
+/* App top bar (logo + language toggle) */
+.app-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 1.5rem;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-h);
+  font-size: 0.95rem;
+}
+
+.brand-mark {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1.5px solid var(--text-h);
+  background: linear-gradient(90deg, var(--text-h) 50%, transparent 50%);
+}
+
+/* Home (Home A: 2x2 grid, anchored above vertical center) */
+.page-home {
+  max-width: 880px;
+  margin: 8vh auto 0;
+  padding: 0 1.75rem 2rem;
+}
+
+.home-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+@media (max-width: 640px) {
+  .home-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.home-tile {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 1rem;
+  row-gap: 0.25rem;
+  align-items: start;
+  padding: 1.4rem 1.4rem 1.35rem;
+  min-height: 130px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-2);
+  color: var(--text-h);
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.home-tile:hover,
+.home-tile:focus-visible {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+  outline: none;
+}
+
+.home-tile-icon {
+  grid-row: 1 / span 2;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--text-h);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 1.25rem;
+  color: var(--text-h);
+}
+
+.home-tile-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.home-tile-desc {
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+/* Reusable buttons */
+button.secondary {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.6rem 1rem;
+  font-family: inherit;
+  font-size: 0.95rem;
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+button.secondary:hover {
+  border-color: var(--accent-border);
+}

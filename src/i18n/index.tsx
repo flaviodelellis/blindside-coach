@@ -1,0 +1,467 @@
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
+
+export type Lang = "it" | "en";
+
+const STORAGE_KEY = "blindside-lang";
+
+type Dict = Record<string, string>;
+
+const it: Dict = {
+  // app shell
+  "app.title": "BlindSide Coach",
+  "app.subtitle": "Piattaforma di riabilitazione visiva per emianopsia",
+  "app.lang.toggle": "Lingua",
+
+  // home buttons
+  "home.tach.title": "Tachistoscopia",
+  "home.tach.desc": "Stimoli flash, posizioni periferiche",
+  "home.disc.title": "Discriminazione",
+  "home.disc.desc": "Forma · colore · orientamento",
+  "home.prescription.title": "Apri prescrizione",
+  "home.prescription.desc": "Carica protocollo salvato",
+  "home.review.title": "Rivedi sessione",
+  "home.review.desc": "Risultati passati, export",
+
+  // common
+  "common.back": "← Torna alla home",
+  "common.home": "← Home",
+  "common.cancel": "Annulla",
+  "common.start": "Inizia",
+  "common.startExercise": "Avvia esercizio",
+  "common.endSession": "Termina sessione",
+  "common.under_construction": "In costruzione",
+  "common.under_construction_msg":
+    'La vista "{view}" non è ancora implementata.',
+
+  // tach configure form
+  "tach.title": "Tachistoscopia",
+  "tach.subtitle": "Configura la sessione e premi Avvia.",
+  "tach.breadcrumb": "Configura · Tachistoscopia",
+  "tach.summary.live": "Riepilogo · live",
+  "tach.section.mode": "Modalità sessione",
+  "tach.section.stimuli": "Stimoli",
+  "tach.section.position": "Posizione",
+  "tach.section.timing": "Tempi",
+  "tach.section.advanced": "Avanzato",
+  "tach.summary.title": "Riepilogo sessione",
+  "tach.summary.mode": "Modalità",
+  "tach.summary.mode.clinician": "Guidata dal clinico",
+  "tach.summary.mode.patient": "Paziente (input testuale)",
+  "tach.summary.stimuli": "Stimoli",
+  "tach.summary.lang.it": "italiane",
+  "tach.summary.lang.en": "inglesi",
+  "tach.summary.lang.both": "italiane e inglesi",
+  "tach.summary.stimuli.words": "{n} trial · parole {lang} ({len} lettere)",
+  "tach.summary.stimuli.pseudo": "con {pct}% di pseudoparole",
+  "tach.summary.stimuli.no_pseudo": "solo parole reali",
+  "tach.summary.position": "Posizione",
+  "tach.summary.pos.custom": "Griglia personalizzata ({n} celle)",
+  "tach.summary.pos.custom_empty": "Griglia personalizzata (nessuna cella selezionata)",
+  "tach.summary.timing": "Tempi",
+  "tach.summary.timing.exposure": "Esposizione {ms} ms",
+  "tach.summary.timing.iti_fixed": "intervallo {ms} ms",
+  "tach.summary.timing.iti_range": "intervallo {min}–{max} ms",
+  "tach.summary.duration": "Durata stimata",
+  "tach.summary.duration.value": "~{value}",
+  "tach.summary.duration.variable": "variabile (dipende dal paziente)",
+  "tach.summary.duration.seconds": "{n} s",
+  "tach.summary.duration.minutes": "{n} min",
+  "tach.summary.duration.min_sec": "{m} min {s} s",
+  "tach.field.n_trials": "Numero di trial",
+  "tach.field.exposure": "Esposizione (ms)",
+  "tach.field.iti": "Intervallo tra trial (ms)",
+  "tach.hint.iti":
+    "Valore uniforme nel range a ogni trial. min = max disattiva il jitter.",
+  "tach.field.language": "Lingua parole",
+  "tach.lang.it": "Italiano",
+  "tach.lang.en": "Inglese",
+  "tach.lang.both": "Entrambe",
+  "tach.field.length": "Lunghezza parole (lettere)",
+  "tach.field.position": "Posizione stimoli",
+  "tach.pos.peripheral_both": "Periferica (entrambi i lati)",
+  "tach.pos.peripheral_left": "Periferica sinistra",
+  "tach.pos.peripheral_right": "Periferica destra",
+  "tach.pos.custom_grid": "Personalizzata (griglia)",
+  "tach.field.allowed_regions": "Zone consentite",
+  "tach.field.include_pseudo": "Includere pseudoparole",
+  "tach.field.pseudo_ratio": "Rateo pseudoparole",
+  "tach.field.patient_mode": "Modalità paziente (input testuale)",
+  "tach.hint.patient_mode":
+    "Il paziente scrive la parola dopo ogni trial; ripete finché non la indovina. Spenta = flusso clinico (Ripeti / Prossima).",
+  "tach.field.random_seed": "Random seed (opzionale)",
+  "tach.placeholder.random_seed": "vuoto = casuale",
+  "tach.grid.empty_error":
+    "Seleziona almeno una cella nella griglia delle zone consentite, oppure scegli un'altra modalità di posizione.",
+
+  // tach runner: instructions
+  "tach.run.title.clinician": "Tachistoscopia: modalità guidata",
+  "tach.run.title.patient": "Tachistoscopia: modalità paziente",
+  "tach.run.position":
+    "Posizionati davanti allo schermo, con lo sguardo sulla crocetta centrale.",
+  "tach.run.patient.p1":
+    "Ogni parola apparirà brevemente in un punto dello schermo. Subito dopo, digita la parola che hai visto e premi Invio.",
+  "tach.run.patient.li1": "Se è corretta, si passa alla parola successiva.",
+  "tach.run.patient.li2":
+    "Se è sbagliata, la parola verrà mostrata di nuovo finché non la riconoscerai.",
+  "tach.run.patient.li3.pre": "Premi ",
+  "tach.run.patient.li3.btn": "Ripeti",
+  "tach.run.patient.li3.mid": " (tasto ",
+  "tach.run.patient.li3.post":
+    ") per rivedere la parola senza inserire un tentativo.",
+  "tach.run.patient.li4.pre": "Usa ",
+  "tach.run.patient.li4.btn": "Passa",
+  "tach.run.patient.li4.post": " se non riesci proprio a vederla.",
+  "tach.run.clinician.intro":
+    "Le parole appariranno brevemente. Dopo ogni parola potrai scegliere:",
+  "tach.run.clinician.li1.btn": "Ripeti",
+  "tach.run.clinician.li1.mid": " (tasto ",
+  "tach.run.clinician.li1.post":
+    ") per mostrare di nuovo la stessa parola al paziente",
+  "tach.run.clinician.li2.btn": "Prossima",
+  "tach.run.clinician.li2.mid": " (tasto ",
+  "tach.run.clinician.li2.sep": " o ",
+  "tach.run.clinician.li2.post": ") per passare al trial successivo",
+  "tach.run.session_size": "Sessione di {n} trial.",
+
+  // tach runner: panels
+  "tach.panel.trial": "Trial {idx} / {tot}",
+  "tach.panel.repetitions": " · ripetizioni: {n}",
+  "tach.panel.attempts": " · tentativi: {n}",
+  "tach.panel.repeat": "Ripeti",
+  "tach.panel.next": "Prossima",
+  "tach.panel.confirm": "Conferma",
+  "tach.panel.skip": "Passa",
+  "tach.panel.placeholder": "Scrivi la parola che hai visto…",
+
+  // tach results
+  "tach.results.title": "Risultati",
+  "tach.results.subtitle":
+    "Sessione di {sec} secondi, {n} trial completati.",
+  "tach.results.accuracy": "Accuracy",
+  "tach.results.rt_mean": "RT medio",
+  "tach.results.delta_exposure": "Delta esposizione",
+  "tach.results.real_vs_pseudo": "Reali vs Pseudoparole",
+  "tach.results.col.empty": "",
+  "tach.results.col.presented": "Presentate",
+  "tach.results.col.detected": "Rilevate",
+  "tach.results.col.rt": "RT medio",
+  "tach.results.row.real": "Reali",
+  "tach.results.row.pseudo": "Pseudo",
+  "tach.results.per_quadrant": "Per quadrante",
+  "tach.results.quad": "Quadrante",
+  "tach.results.col.presented_q": "Presentati",
+  "tach.results.col.detected_q": "Rilevati",
+  "tach.results.download": "Scarica file di sessione (JSON)",
+  "tach.results.download_csv": "Scarica CSV",
+  "tach.results.restart": "Nuova configurazione",
+  "tach.results.trials": "Trial",
+  "tach.results.trials_table": "Trial-by-trial",
+  "tach.results.col.trial_n": "#",
+  "tach.results.col.position": "pos",
+  "tach.results.col.stimulus": "stim",
+  "tach.results.col.response": "resp",
+  "tach.results.col.rt_short": "rt",
+  "tach.run.tiny_counter": "{idx} / {tot}",
+  "quadrant.upper_left": "Alto sinistra",
+  "quadrant.upper_right": "Alto destra",
+  "quadrant.lower_left": "Basso sinistra",
+  "quadrant.lower_right": "Basso destra",
+
+  // heatmap report
+  "heatmap.title": "Mappa di calore",
+  "heatmap.meta": "Basata su {n} trial. L'incrocio segna il punto di fissazione.",
+  "heatmap.fig.accuracy": "Accuratezza per zona",
+  "heatmap.fig.rt": "Tempo di reazione per zona",
+  "heatmap.tooltip.trials": "Trial",
+  "heatmap.tooltip.accuracy": "Accuratezza",
+  "heatmap.tooltip.rt": "RT medio",
+  "heatmap.tooltip.no_data": "Nessun trial in questa zona",
+
+  // grid selector
+  "grid.rows": "Righe",
+  "grid.cols": "Colonne",
+  "grid.weighted": "Pesi per cella",
+  "grid.clear": "Pulisci",
+  "grid.hint.empty": "Clicca le celle dove dovranno apparire gli stimoli.",
+  "grid.hint.weighted":
+    "Click ripetuti aumentano il peso (1 → {max} → off). Le percentuali mostrano la probabilità relativa.",
+  "grid.hint.uniform":
+    "{n} cella/e attiva/e. Gli stimoli appariranno con uguale probabilità in una di esse.",
+  "grid.fix.label": "cella di fissazione (non selezionabile)",
+
+  // gaze validation
+  "tach.field.gaze_validation": "Validazione fissazione (webcam)",
+  "tach.hint.gaze_validation":
+    "Usa la webcam per rilevare se lo sguardo lascia la croce centrale. Richiede una calibrazione iniziale.",
+  "gaze.cal.starting.title": "Avvio webcam…",
+  "gaze.cal.starting.body":
+    "Concedi l'accesso alla telecamera quando richiesto.",
+  "gaze.cal.error.title": "Impossibile avviare l'eye tracking",
+  "gaze.cal.error.body":
+    "Verifica i permessi della webcam e riprova.",
+  "gaze.cal.hint":
+    "Calibrazione: guarda il punto e cliccaci sopra 5 volte. Punto {idx} di {tot}.",
+};
+
+const en: Dict = {
+  "app.title": "BlindSide Coach",
+  "app.subtitle": "Visual rehabilitation platform for hemianopia",
+  "app.lang.toggle": "Language",
+
+  "home.tach.title": "Tachistoscopy",
+  "home.tach.desc": "Flashed stimuli, peripheral positions",
+  "home.disc.title": "Discrimination",
+  "home.disc.desc": "Shape · color · orientation",
+  "home.prescription.title": "Open prescription",
+  "home.prescription.desc": "Load a saved protocol",
+  "home.review.title": "Review session",
+  "home.review.desc": "Past results, export",
+
+  "common.back": "← Back to home",
+  "common.home": "← Home",
+  "common.cancel": "Cancel",
+  "common.start": "Start",
+  "common.startExercise": "Start exercise",
+  "common.endSession": "End session",
+  "common.under_construction": "Under construction",
+  "common.under_construction_msg": 'The "{view}" view is not implemented yet.',
+
+  "tach.title": "Tachistoscopy",
+  "tach.subtitle": "Configure the session and press Start.",
+  "tach.breadcrumb": "Configure · Tachistoscopy",
+  "tach.summary.live": "Summary · live",
+  "tach.section.mode": "Session mode",
+  "tach.section.stimuli": "Stimuli",
+  "tach.section.position": "Position",
+  "tach.section.timing": "Timing",
+  "tach.section.advanced": "Advanced",
+  "tach.summary.title": "Session summary",
+  "tach.summary.mode": "Mode",
+  "tach.summary.mode.clinician": "Clinician-paced",
+  "tach.summary.mode.patient": "Patient (text input)",
+  "tach.summary.stimuli": "Stimuli",
+  "tach.summary.lang.it": "Italian",
+  "tach.summary.lang.en": "English",
+  "tach.summary.lang.both": "Italian and English",
+  "tach.summary.stimuli.words": "{n} trials · {lang} words ({len} letters)",
+  "tach.summary.stimuli.pseudo": "with {pct}% pseudowords",
+  "tach.summary.stimuli.no_pseudo": "real words only",
+  "tach.summary.position": "Position",
+  "tach.summary.pos.custom": "Custom grid ({n} cells)",
+  "tach.summary.pos.custom_empty": "Custom grid (no cells selected)",
+  "tach.summary.timing": "Timing",
+  "tach.summary.timing.exposure": "Exposure {ms} ms",
+  "tach.summary.timing.iti_fixed": "interval {ms} ms",
+  "tach.summary.timing.iti_range": "interval {min}–{max} ms",
+  "tach.summary.duration": "Estimated duration",
+  "tach.summary.duration.value": "~{value}",
+  "tach.summary.duration.variable": "variable (depends on patient)",
+  "tach.summary.duration.seconds": "{n} s",
+  "tach.summary.duration.minutes": "{n} min",
+  "tach.summary.duration.min_sec": "{m} min {s} s",
+  "tach.field.n_trials": "Number of trials",
+  "tach.field.exposure": "Exposure (ms)",
+  "tach.field.iti": "Inter-trial interval (ms)",
+  "tach.hint.iti":
+    "Uniform value within range per trial. min = max disables jitter.",
+  "tach.field.language": "Word language",
+  "tach.lang.it": "Italian",
+  "tach.lang.en": "English",
+  "tach.lang.both": "Both",
+  "tach.field.length": "Word length (letters)",
+  "tach.field.position": "Stimulus position",
+  "tach.pos.peripheral_both": "Peripheral (both sides)",
+  "tach.pos.peripheral_left": "Peripheral left",
+  "tach.pos.peripheral_right": "Peripheral right",
+  "tach.pos.custom_grid": "Custom (grid)",
+  "tach.field.allowed_regions": "Allowed regions",
+  "tach.field.include_pseudo": "Include pseudowords",
+  "tach.field.pseudo_ratio": "Pseudoword ratio",
+  "tach.field.patient_mode": "Patient mode (text input)",
+  "tach.hint.patient_mode":
+    "Patient types the word after each trial; repeats until correct. Off = clinician flow (Repeat / Next).",
+  "tach.field.random_seed": "Random seed (optional)",
+  "tach.placeholder.random_seed": "blank = random",
+  "tach.grid.empty_error":
+    "Select at least one cell in the allowed-regions grid, or pick a different position mode.",
+
+  "tach.run.title.clinician": "Tachistoscopy: clinician-paced",
+  "tach.run.title.patient": "Tachistoscopy: patient mode",
+  "tach.run.position":
+    "Sit in front of the screen and keep your eyes on the central cross.",
+  "tach.run.patient.p1":
+    "Each word will briefly appear somewhere on the screen. Right after, type the word you saw and press Enter.",
+  "tach.run.patient.li1": "If correct, you move on to the next word.",
+  "tach.run.patient.li2":
+    "If wrong, the word will be shown again until you recognize it.",
+  "tach.run.patient.li3.pre": "Press ",
+  "tach.run.patient.li3.btn": "Repeat",
+  "tach.run.patient.li3.mid": " (key ",
+  "tach.run.patient.li3.post": ") to see the word again without submitting.",
+  "tach.run.patient.li4.pre": "Use ",
+  "tach.run.patient.li4.btn": "Skip",
+  "tach.run.patient.li4.post": " if you really can't see it.",
+  "tach.run.clinician.intro":
+    "Words will appear briefly. After each word you can choose:",
+  "tach.run.clinician.li1.btn": "Repeat",
+  "tach.run.clinician.li1.mid": " (key ",
+  "tach.run.clinician.li1.post": ") to show the same word to the patient again",
+  "tach.run.clinician.li2.btn": "Next",
+  "tach.run.clinician.li2.mid": " (key ",
+  "tach.run.clinician.li2.sep": " or ",
+  "tach.run.clinician.li2.post": ") to move to the next trial",
+  "tach.run.session_size": "Session of {n} trials.",
+
+  "tach.panel.trial": "Trial {idx} / {tot}",
+  "tach.panel.repetitions": " · repetitions: {n}",
+  "tach.panel.attempts": " · attempts: {n}",
+  "tach.panel.repeat": "Repeat",
+  "tach.panel.next": "Next",
+  "tach.panel.confirm": "Confirm",
+  "tach.panel.skip": "Skip",
+  "tach.panel.placeholder": "Type the word you saw…",
+
+  "tach.results.title": "Results",
+  "tach.results.subtitle": "Session of {sec} seconds, {n} trials completed.",
+  "tach.results.accuracy": "Accuracy",
+  "tach.results.rt_mean": "Mean RT",
+  "tach.results.delta_exposure": "Exposure delta",
+  "tach.results.real_vs_pseudo": "Real vs Pseudowords",
+  "tach.results.col.empty": "",
+  "tach.results.col.presented": "Presented",
+  "tach.results.col.detected": "Detected",
+  "tach.results.col.rt": "Mean RT",
+  "tach.results.row.real": "Real",
+  "tach.results.row.pseudo": "Pseudo",
+  "tach.results.per_quadrant": "Per quadrant",
+  "tach.results.quad": "Quadrant",
+  "tach.results.col.presented_q": "Presented",
+  "tach.results.col.detected_q": "Detected",
+  "tach.results.download": "Download session file (JSON)",
+  "tach.results.download_csv": "Download CSV",
+  "tach.results.restart": "New configuration",
+  "tach.results.trials": "Trials",
+  "tach.results.trials_table": "Trial-by-trial",
+  "tach.results.col.trial_n": "#",
+  "tach.results.col.position": "pos",
+  "tach.results.col.stimulus": "stim",
+  "tach.results.col.response": "resp",
+  "tach.results.col.rt_short": "rt",
+  "tach.run.tiny_counter": "{idx} / {tot}",
+  "quadrant.upper_left": "Upper left",
+  "quadrant.upper_right": "Upper right",
+  "quadrant.lower_left": "Lower left",
+  "quadrant.lower_right": "Lower right",
+
+  "heatmap.title": "Result heatmap",
+  "heatmap.meta": "Based on {n} trials. The cross marks the fixation point.",
+  "heatmap.fig.accuracy": "Accuracy by zone",
+  "heatmap.fig.rt": "Reaction time by zone",
+  "heatmap.tooltip.trials": "Trials",
+  "heatmap.tooltip.accuracy": "Accuracy",
+  "heatmap.tooltip.rt": "Mean RT",
+  "heatmap.tooltip.no_data": "No trials in this zone",
+
+  "grid.rows": "Rows",
+  "grid.cols": "Columns",
+  "grid.weighted": "Per-cell weights",
+  "grid.clear": "Clear",
+  "grid.hint.empty": "Click the cells where stimuli should appear.",
+  "grid.hint.weighted":
+    "Repeated clicks raise the weight (1 → {max} → off). The percentages show the relative probability.",
+  "grid.hint.uniform":
+    "{n} active cell(s). Stimuli will appear with equal probability in one of them.",
+  "grid.fix.label": "fixation cell (not selectable)",
+
+  "tach.field.gaze_validation": "Fixation validation (webcam)",
+  "tach.hint.gaze_validation":
+    "Uses the webcam to detect if gaze leaves the central cross. Requires an initial calibration.",
+  "gaze.cal.starting.title": "Starting webcam…",
+  "gaze.cal.starting.body": "Grant camera access when prompted.",
+  "gaze.cal.error.title": "Could not start eye tracking",
+  "gaze.cal.error.body":
+    "Check webcam permissions and try again.",
+  "gaze.cal.hint":
+    "Calibration: look at the dot and click it 5 times. Point {idx} of {tot}.",
+};
+
+const DICTIONARIES: Record<Lang, Dict> = { it, en };
+
+type Ctx = {
+  lang: Lang;
+  setLang: (l: Lang) => void;
+  t: (key: string, params?: Record<string, string | number>) => string;
+};
+
+const LangContext = createContext<Ctx | null>(null);
+
+export function LangProvider({ children }: { children: ReactNode }) {
+  const [lang, setLang] = useState<Lang>(() => {
+    if (typeof localStorage === "undefined") return "it";
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored === "en" || stored === "it" ? stored : "it";
+  });
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, lang);
+    document.documentElement.lang = lang;
+  }, [lang]);
+
+  const t = (key: string, params?: Record<string, string | number>) => {
+    const raw = DICTIONARIES[lang][key] ?? DICTIONARIES.it[key] ?? key;
+    if (!params) return raw;
+    return Object.keys(params).reduce(
+      (s, k) =>
+        s.replace(new RegExp(`\\{${k}\\}`, "g"), String(params[k])),
+      raw,
+    );
+  };
+
+  return (
+    <LangContext.Provider value={{ lang, setLang, t }}>
+      {children}
+    </LangContext.Provider>
+  );
+}
+
+export function useT() {
+  const ctx = useContext(LangContext);
+  if (!ctx) throw new Error("useT must be used inside LangProvider");
+  return ctx.t;
+}
+
+export function useLang(): readonly [Lang, (l: Lang) => void] {
+  const ctx = useContext(LangContext);
+  if (!ctx) throw new Error("useLang must be used inside LangProvider");
+  return [ctx.lang, ctx.setLang] as const;
+}
+
+export function LanguageToggle({ className }: { className?: string }) {
+  const [lang, setLang] = useLang();
+  return (
+    <div className={`lang-toggle${className ? ` ${className}` : ""}`}>
+      <button
+        type="button"
+        className={lang === "it" ? "active" : ""}
+        onClick={() => setLang("it")}
+        aria-label="Italiano"
+      >
+        IT
+      </button>
+      <button
+        type="button"
+        className={lang === "en" ? "active" : ""}
+        onClick={() => setLang("en")}
+        aria-label="English"
+      >
+        EN
+      </button>
+    </div>
+  );
+}

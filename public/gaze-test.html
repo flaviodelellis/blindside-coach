@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>WebGazer test</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: #0b0f14;
+        color: #e8eef5;
+        font-family: system-ui, sans-serif;
+        overflow: hidden;
+        cursor: crosshair;
+      }
+      #hud {
+        position: fixed;
+        top: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(255, 255, 255, 0.08);
+        padding: 8px 14px;
+        border-radius: 999px;
+        font-size: 14px;
+        pointer-events: none;
+        z-index: 10;
+      }
+      #stats {
+        position: fixed;
+        bottom: 12px;
+        left: 12px;
+        background: rgba(0, 0, 0, 0.5);
+        padding: 6px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-family: monospace;
+        pointer-events: none;
+        z-index: 10;
+      }
+      #gaze {
+        position: fixed;
+        width: 24px;
+        height: 24px;
+        margin: -12px 0 0 -12px;
+        border-radius: 50%;
+        background: rgba(255, 80, 80, 0.65);
+        box-shadow: 0 0 0 2px rgba(255, 80, 80, 0.9);
+        pointer-events: none;
+        z-index: 9;
+        transition: left 60ms linear, top 60ms linear;
+        opacity: 0;
+      }
+      .target {
+        position: fixed;
+        width: 28px;
+        height: 28px;
+        margin: -14px 0 0 -14px;
+        border-radius: 50%;
+        background: #3aa3ff;
+        border: 2px solid #fff;
+        cursor: pointer;
+        z-index: 8;
+      }
+      .target.done {
+        background: rgba(58, 163, 255, 0.2);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="hud">Click each blue dot 5 times while looking at it. Then move your eyes.</div>
+    <div id="stats">samples: 0 · last: —, —</div>
+    <div id="gaze"></div>
+
+    <script src="/webgazer.js"></script>
+    <script>
+      // Point at the local MediaPipe assets we copied into public/mediapipe.
+      webgazer.params.faceMeshSolutionPath = "/mediapipe/face_mesh";
+
+      const gazeEl = document.getElementById("gaze");
+      const statsEl = document.getElementById("stats");
+
+      // Calibration grid: 9 points (corners + edges + center).
+      const POINTS = [
+        [0.1, 0.1], [0.5, 0.1], [0.9, 0.1],
+        [0.1, 0.5], [0.5, 0.5], [0.9, 0.5],
+        [0.1, 0.9], [0.5, 0.9], [0.9, 0.9],
+      ];
+      const CLICKS_PER = 5;
+      const clicksLeft = new Map();
+
+      function buildTargets() {
+        POINTS.forEach(([x, y], idx) => {
+          const el = document.createElement("button");
+          el.className = "target";
+          el.style.left = (x * 100) + "vw";
+          el.style.top = (y * 100) + "vh";
+          el.dataset.idx = idx;
+          clicksLeft.set(idx, CLICKS_PER);
+          el.textContent = CLICKS_PER;
+          el.addEventListener("click", (e) => {
+            const left = (clicksLeft.get(idx) || 0) - 1;
+            clicksLeft.set(idx, left);
+            // Tell WebGazer this is where the user is looking right now.
+            webgazer.recordScreenPosition(e.clientX, e.clientY, "click");
+            if (left <= 0) {
+              el.classList.add("done");
+              el.textContent = "✓";
+              el.disabled = true;
+            } else {
+              el.textContent = left;
+            }
+          });
+          document.body.appendChild(el);
+        });
+      }
+
+      let sampleCount = 0;
+      function onGaze(data) {
+        if (!data) return;
+        sampleCount++;
+        gazeEl.style.left = data.x + "px";
+        gazeEl.style.top = data.y + "px";
+        gazeEl.style.opacity = "1";
+        statsEl.textContent =
+          "samples: " + sampleCount +
+          " · last: " + Math.round(data.x) + ", " + Math.round(data.y);
+      }
+
+      (async () => {
+        webgazer
+          .setRegression("ridge")
+          .setGazeListener(onGaze)
+          .saveDataAcrossSessions(false);
+        try {
+          await webgazer.begin();
+        } catch (err) {
+          document.getElementById("hud").textContent =
+            "Webcam error: " + (err && err.name) + " — " + (err && err.message);
+          console.error(err);
+          return;
+        }
+        webgazer.showPredictionPoints(false);
+        buildTargets();
+      })();
+    </script>
+  </body>
+</html>

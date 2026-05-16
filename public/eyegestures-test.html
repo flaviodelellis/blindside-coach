@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>EyeGestures test</title>
+    <link rel="stylesheet" href="https://eyegestures.com/eyegestures.css" />
+    <!-- External deps required by EyeGestures (matches their official example). -->
+    <script src="https://www.lactame.com/lib/ml/6.0.0/ml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/heatmap.js@2.0.5/build/heatmap.min.js"></script>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: #0b0f14;
+        color: #e8eef5;
+        font-family: system-ui, sans-serif;
+        overflow: hidden;
+      }
+      #heatmap-container {
+        pointer-events: none;
+        width: 100vw;
+        height: 100vh;
+      }
+      .container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        padding-top: 20px;
+      }
+      #status {
+        font-family: monospace;
+        font-size: 12px;
+        opacity: 0.6;
+      }
+      #error {
+        color: #ff8080;
+        display: none;
+      }
+      #hud {
+        position: fixed;
+        top: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(255, 255, 255, 0.08);
+        padding: 8px 14px;
+        border-radius: 999px;
+        font-size: 14px;
+        pointer-events: none;
+        z-index: 10;
+        max-width: 80vw;
+        text-align: center;
+      }
+      #gaze {
+        position: fixed;
+        width: 24px;
+        height: 24px;
+        margin: -12px 0 0 -12px;
+        border-radius: 50%;
+        background: rgba(255, 80, 80, 0.65);
+        box-shadow: 0 0 0 2px rgba(255, 80, 80, 0.9);
+        pointer-events: none;
+        z-index: 9;
+        transition: left 60ms linear, top 60ms linear;
+        opacity: 0;
+      }
+      video {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="hud">
+      Calibrazione: segui con gli occhi i cerchi rossi. Quando termina, il puntino rosso seguirà lo sguardo.
+    </div>
+
+    <div id="heatmap-container">
+      <div class="container">
+        <div id="status">Initializing…</div>
+        <div id="error"></div>
+        <video id="video" width="640" height="480" autoplay playsinline></video>
+      </div>
+    </div>
+
+    <div id="gaze"></div>
+
+    <!-- EyeGestures bundle from CDN. -->
+    <script src="https://eyegestures.com/eyegestures.js"></script>
+    <script>
+      const gazeEl = document.getElementById("gaze");
+      const statusEl = document.getElementById("status");
+      let samples = 0;
+      let calibrated = false;
+
+      function onPoint(point, isCalibrated) {
+        samples++;
+        const x = point[0];
+        const y = point[1];
+        gazeEl.style.left = x + "px";
+        gazeEl.style.top = y + "px";
+        gazeEl.style.opacity = isCalibrated ? "1" : "0.5";
+        if (isCalibrated && !calibrated) {
+          calibrated = true;
+          document.getElementById("hud").textContent =
+            "Calibrato. Il puntino rosso segue lo sguardo.";
+        }
+        statusEl.textContent =
+          (isCalibrated ? "calibrated" : "calibrating") +
+          " · samples: " + samples +
+          " · last: " + Math.round(x) + ", " + Math.round(y);
+      }
+
+      try {
+        const gestures = new EyeGestures("video", onPoint);
+        gestures.invisible();
+        gestures.start();
+      } catch (err) {
+        const errEl = document.getElementById("error");
+        errEl.style.display = "block";
+        errEl.textContent =
+          "Errore EyeGestures: " + (err && err.message ? err.message : err);
+        console.error(err);
+      }
+    </script>
+  </body>
+</html>

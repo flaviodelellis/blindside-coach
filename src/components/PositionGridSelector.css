@@ -1,0 +1,143 @@
+.grid-selector {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.grid-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.grid-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.grid-controls input[type="number"] {
+  width: 4.5rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-h);
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.weighted-toggle input[type="checkbox"] {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0;
+  font-family: inherit;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
+
+.grid-canvas-wrap {
+  width: 100%;
+  max-width: 480px;
+}
+
+.grid-canvas {
+  position: relative;
+  display: grid;
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--accent-bg);
+  overflow: hidden;
+  gap: 1px;
+  padding: 1px;
+}
+
+.cell {
+  position: relative;
+  border: none;
+  background: var(--bg);
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text);
+  transition: background 0.12s ease, color 0.12s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.cell:hover {
+  background: rgba(170, 59, 255, 0.06);
+}
+
+.cell.on {
+  background: var(--accent);
+  color: #fff;
+}
+
+.cell.on:hover {
+  filter: brightness(1.05);
+}
+
+.weight {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+  gap: 0.15rem;
+}
+
+.weight-num {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.weight-pct {
+  font-size: 0.7rem;
+  opacity: 0.85;
+}
+
+.cell.fixation {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--bg),
+    var(--bg) 6px,
+    var(--border) 6px,
+    var(--border) 7px
+  );
+  cursor: not-allowed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fix-marker {
+  font-family: var(--mono);
+  font-size: 1.4rem;
+  color: var(--text-h);
+  opacity: 0.7;
+  font-weight: 700;
+  user-select: none;
+  pointer-events: none;
+}
+
+.grid-hint {
+  font-size: 0.8rem;
+  color: var(--text);
+  margin: 0;
+}
