@@ -396,7 +396,7 @@ function ConfigureForm({
                   update("position", e.target.value as PositionChoice)
                 }
               >
-                <option value="peripheral_both">Periferica (entrambi i lati)</option>
+                <option value="peripheral_both">Periferica</option>
                 <option value="peripheral_left">Periferica sinistra</option>
                 <option value="peripheral_right">Periferica destra</option>
                 <option value="central">Centrale</option>

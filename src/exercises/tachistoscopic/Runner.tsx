@@ -29,7 +29,7 @@ type TrialParam = {
   iti_ms: number;
 };
 
-type Phase = "instructions" | "iti" | "flash" | "awaiting" | "done";
+type Phase = "instructions" | "ready" | "iti" | "flash" | "awaiting" | "done";
 
 function normalize(s: string): string {
   return s.trim().toLocaleLowerCase("it");
@@ -107,7 +107,8 @@ export function TachistoscopicRunner({
     startedAtRef.current = new Date().toISOString();
     startedPerfRef.current = performance.now();
     setNRepetitions(0);
-    setPhase("iti");
+    // Clinician paces every word, including the first: wait for Space/Enter.
+    setPhase(config.response_mode !== "patient_types" ? "ready" : "iti");
   };
 
   const repeat = () => {
@@ -194,6 +195,9 @@ export function TachistoscopicRunner({
       )}
       {isClinician && (
         <TinyCounter idx={trialIdx + 1} total={params.length} />
+      )}
+      {phase === "ready" && isClinician && (
+        <ReadyPanel onGo={() => setPhase("iti")} onCancel={onCancel} />
       )}
       {phase === "awaiting" &&
         (isClinician ? (
@@ -357,6 +361,40 @@ function WordDisplay({
       }}
     >
       {word}
+    </div>
+  );
+}
+
+function ReadyPanel({
+  onGo,
+  onCancel,
+}: {
+  onGo: () => void;
+  onCancel: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        onGo();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onGo]);
+
+  const t = useT();
+  return (
+    <div className="tach-panel tach-panel-slide is-visible">
+      <div className="tach-panel-meta">{t("tach.ready.prompt")}</div>
+      <div className="tach-panel-actions">
+        <button type="button" onClick={onGo}>
+          {t("tach.ready.go")} <kbd>↵</kbd>
+        </button>
+      </div>
+      <button type="button" className="link-btn" onClick={onCancel}>
+        {t("common.endSession")}
+      </button>
     </div>
   );
 }

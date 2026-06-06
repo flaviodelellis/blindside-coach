@@ -18,6 +18,10 @@ import { HeatmapReport, type HeatmapPoint } from "../../components/HeatmapReport
 import { ColorField } from "../../components/ColorField";
 import { NumberField } from "../../components/NumberField";
 import { ConfigManager } from "../../components/ConfigManager";
+import {
+  AppearancePreview,
+  type PreviewPoint,
+} from "../../components/AppearancePreview";
 import { BackButton } from "../../components/BackButton";
 import { LanguageToggle, useT } from "../../i18n";
 import "./Tachistoscopic.css";
@@ -85,6 +89,33 @@ function parseCustomWords(text: string): string[] {
     .split(/[\n,]/)
     .map((w) => w.trim())
     .filter((w) => w.length > 0);
+}
+
+/** Representative stimulus positions (normalized) for the appearance preview. */
+function previewPoints(form: FormState): PreviewPoint[] {
+  switch (form.position) {
+    case "peripheral_left":
+      return [{ x: 0.2, y: 0.5 }];
+    case "peripheral_right":
+      return [{ x: 0.8, y: 0.5 }];
+    case "peripheral_both":
+      return [
+        { x: 0.18, y: 0.5 },
+        { x: 0.82, y: 0.5 },
+      ];
+    case "custom_grid": {
+      const { rows, cols, cells } = form.position_grid;
+      const pts: PreviewPoint[] = [];
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          if ((cells[r]?.[c] ?? 0) > 0) {
+            pts.push({ x: (c + 0.5) / cols, y: (r + 0.5) / rows });
+          }
+        }
+      }
+      return pts;
+    }
+  }
 }
 
 function positionFromForm(form: FormState): PositionMode {
@@ -650,9 +681,22 @@ function LiveSummary({
           max: form.iti_max_ms,
         });
 
+  const previewWord = isCustom
+    ? (parseCustomWords(form.custom_words)[0] ?? t("tach.preview.sample"))
+    : t("tach.preview.sample");
+
   return (
     <div className="summary-card">
       <div className="summary-eyebrow">{t("tach.summary.live")}</div>
+      <AppearancePreview
+        background={form.background_color}
+        wordColor={form.text_color}
+        fixationColor={form.fixation_color}
+        fontSizePx={form.font_size_px}
+        word={previewWord}
+        points={previewPoints(form)}
+        label={t("tach.summary.preview")}
+      />
       <dl className="summary-rows">
         <div>
           <dt>{t("tach.summary.mode")}</dt>
