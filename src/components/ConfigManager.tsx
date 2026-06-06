@@ -96,8 +96,13 @@ export function ConfigManager<T>({
           value={selected}
           onChange={(e) => handleSelect(e.target.value)}
           aria-label={t("cfg.load")}
+          disabled={presets.length === 0}
         >
-          <option value="">{t("cfg.load.placeholder")}</option>
+          <option value="">
+            {presets.length === 0
+              ? t("cfg.load.empty")
+              : t("cfg.load.placeholder")}
+          </option>
           {presets.map((c) => (
             <option key={c.name} value={c.name}>
               {c.name}

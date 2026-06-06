@@ -35,6 +35,13 @@ body {
   color: var(--text-h);
 }
 
+/* Consistent, accessible keyboard focus ring across all interactive controls. */
+:where(button, input, select, textarea, [role="button"], [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
 h1 {
   font-size: 2.25rem;
   font-weight: 600;
