@@ -17,6 +17,7 @@ import {
 import { HeatmapReport, type HeatmapPoint } from "../../components/HeatmapReport";
 import { ColorField } from "../../components/ColorField";
 import { NumberField } from "../../components/NumberField";
+import { ConfigManager } from "../../components/ConfigManager";
 import { BackButton } from "../../components/BackButton";
 import { LanguageToggle, useT } from "../../i18n";
 import "./Tachistoscopic.css";
@@ -53,6 +54,8 @@ type FormState = {
   fixation_color: string;
   random_seed: string;
 };
+
+export type TachFormState = FormState;
 
 const DEFAULT_FORM: FormState = {
   n_trials: 5,
@@ -143,9 +146,17 @@ type RunOutcome = {
   sessionFile: SessionFile;
 };
 
-export function Tachistoscopic({ onBack }: { onBack: () => void }) {
+export function Tachistoscopic({
+  onBack,
+  initialForm,
+}: {
+  onBack: () => void;
+  initialForm?: FormState;
+}) {
   const [mode, setMode] = useState<Mode>("configure");
-  const [form, setForm] = useState<FormState>(DEFAULT_FORM);
+  const [form, setForm] = useState<FormState>(
+    initialForm ? { ...DEFAULT_FORM, ...initialForm } : DEFAULT_FORM,
+  );
   const [outcome, setOutcome] = useState<RunOutcome | null>(null);
 
   const handleComplete = (engineResult: EngineResult) => {
@@ -566,7 +577,12 @@ function ConfigureForm({
         </div>
 
         <aside className="form-summary">
-          <LiveSummary form={form} onStart={onStart} disabled={cannotStart} />
+          <LiveSummary
+            form={form}
+            onStart={onStart}
+            disabled={cannotStart}
+            onLoad={(f) => onChange({ ...DEFAULT_FORM, ...f })}
+          />
         </aside>
       </div>
     </main>
@@ -578,10 +594,12 @@ function LiveSummary({
   form,
   onStart,
   disabled,
+  onLoad,
 }: {
   form: FormState;
   onStart: () => void;
   disabled: boolean;
+  onLoad: (form: FormState) => void;
 }) {
   const t = useT();
 
@@ -673,6 +691,11 @@ function LiveSummary({
       >
         {t("common.startExercise")} →
       </button>
+      <ConfigManager
+        exerciseType="tachistoscopic"
+        current={form}
+        onLoad={onLoad}
+      />
     </div>
   );
 }

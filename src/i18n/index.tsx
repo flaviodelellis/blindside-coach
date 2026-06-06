@@ -39,6 +39,28 @@ const it: Dict = {
   "common.under_construction_msg":
     'La vista "{view}" non è ancora implementata.',
 
+  // saved configurations
+  "cfg.section": "Configurazioni",
+  "cfg.save": "Salva configurazione",
+  "cfg.load": "Carica configurazione",
+  "cfg.load.placeholder": "Configurazioni salvate…",
+  "cfg.delete": "Elimina configurazione",
+  "cfg.export": "Esporta",
+  "cfg.import": "Importa",
+  "cfg.prompt.save": "Nome della configurazione:",
+  "cfg.prompt.export": "Nome del file da esportare:",
+  "cfg.confirm.delete": "Eliminare la configurazione «{name}»?",
+  "cfg.error.invalid": "File non valido: non è una configurazione BlindSide.",
+  "cfg.error.wrong_type":
+    "Questa configurazione è per un altro esercizio.",
+
+  // open prescription / load configuration
+  "prescription.intro":
+    "Carica un file di configurazione (.json) per aprire l'esercizio già impostato.",
+  "prescription.choose": "Scegli file…",
+  "prescription.hint":
+    "Sono i file esportati dal pulsante «Esporta» nella schermata di configurazione di un esercizio.",
+
   // tach configure form
   "tach.title": "Tachistoscopia",
   "tach.subtitle": "Configura la sessione e premi Avvia.",
@@ -235,6 +257,25 @@ const en: Dict = {
   "common.endSession": "End session",
   "common.under_construction": "Under construction",
   "common.under_construction_msg": 'The "{view}" view is not implemented yet.',
+
+  "cfg.section": "Configurations",
+  "cfg.save": "Save configuration",
+  "cfg.load": "Load configuration",
+  "cfg.load.placeholder": "Saved configurations…",
+  "cfg.delete": "Delete configuration",
+  "cfg.export": "Export",
+  "cfg.import": "Import",
+  "cfg.prompt.save": "Configuration name:",
+  "cfg.prompt.export": "Name of the file to export:",
+  "cfg.confirm.delete": 'Delete the configuration "{name}"?',
+  "cfg.error.invalid": "Invalid file: not a BlindSide configuration.",
+  "cfg.error.wrong_type": "This configuration is for a different exercise.",
+
+  "prescription.intro":
+    "Load a configuration file (.json) to open the exercise already set up.",
+  "prescription.choose": "Choose file…",
+  "prescription.hint":
+    "These are the files exported with the “Export” button on an exercise's configuration screen.",
 
   "tach.title": "Tachistoscopy",
   "tach.subtitle": "Configure the session and press Start.",

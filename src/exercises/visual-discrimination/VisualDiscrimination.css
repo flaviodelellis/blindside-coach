@@ -13,6 +13,10 @@
   line-height: 1.45;
 }
 
+.vd-config-panel {
+  max-width: 360px;
+}
+
 .metric-sub {
   font-size: 0.72rem;
   color: var(--text);

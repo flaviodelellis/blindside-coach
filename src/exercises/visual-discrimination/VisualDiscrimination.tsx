@@ -11,6 +11,7 @@ import { DEFAULT_COLORS } from "./stimuli";
 import { HeatmapReport, type HeatmapPoint } from "../../components/HeatmapReport";
 import { ColorField } from "../../components/ColorField";
 import { NumberField } from "../../components/NumberField";
+import { ConfigManager } from "../../components/ConfigManager";
 import { BackButton } from "../../components/BackButton";
 import {
   PositionGridSelector,
@@ -45,6 +46,8 @@ type FormState = {
   position_grid: GridState;
   random_seed: string;
 };
+
+export type VDFormState = FormState;
 
 const DEFAULT_FORM: FormState = {
   n_trials: 5,
@@ -150,9 +153,17 @@ type RunOutcome = {
   sessionFile: SessionFile;
 };
 
-export function VisualDiscrimination({ onBack }: { onBack: () => void }) {
+export function VisualDiscrimination({
+  onBack,
+  initialForm,
+}: {
+  onBack: () => void;
+  initialForm?: FormState;
+}) {
   const [mode, setMode] = useState<Mode>("configure");
-  const [form, setForm] = useState<FormState>(DEFAULT_FORM);
+  const [form, setForm] = useState<FormState>(
+    initialForm ? { ...DEFAULT_FORM, ...initialForm } : DEFAULT_FORM,
+  );
   const [runConfig, setRunConfig] = useState<Config | null>(null);
   const [outcome, setOutcome] = useState<RunOutcome | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -425,6 +436,14 @@ function ConfigureForm({
         <button type="button" onClick={onStart}>
           Avvia esercizio
         </button>
+      </div>
+
+      <div className="vd-config-panel">
+        <ConfigManager
+          exerciseType="visual_discrimination"
+          current={form}
+          onLoad={(f) => onChange({ ...DEFAULT_FORM, ...f })}
+        />
       </div>
     </main>
   );

@@ -1,6 +1,14 @@
 import { useState } from "react";
-import { Tachistoscopic } from "./exercises/tachistoscopic/Tachistoscopic";
-import { VisualDiscrimination } from "./exercises/visual-discrimination/VisualDiscrimination";
+import {
+  Tachistoscopic,
+  type TachFormState,
+} from "./exercises/tachistoscopic/Tachistoscopic";
+import {
+  VisualDiscrimination,
+  type VDFormState,
+} from "./exercises/visual-discrimination/VisualDiscrimination";
+import { PrescriptionLoader } from "./components/PrescriptionLoader";
+import type { SavedConfig } from "./lib/configStore";
 import { LanguageToggle, useT } from "./i18n";
 import { BackButton } from "./components/BackButton";
 import "./App.css";
@@ -57,17 +65,58 @@ function Logo() {
 
 function App() {
   const [view, setView] = useState<View>("home");
+  const [pending, setPending] = useState<SavedConfig | null>(null);
   const t = useT();
 
+  const goHome = () => {
+    setPending(null);
+    setView("home");
+  };
+
   if (view === "tachistoscopic") {
-    return <Tachistoscopic onBack={() => setView("home")} />;
+    return (
+      <Tachistoscopic
+        onBack={goHome}
+        initialForm={
+          pending?.exercise_type === "tachistoscopic"
+            ? (pending.form as TachFormState)
+            : undefined
+        }
+      />
+    );
   }
 
   if (view === "discrimination") {
     return (
       <>
         <LanguageToggle className="fixed" />
-        <VisualDiscrimination onBack={() => setView("home")} />
+        <VisualDiscrimination
+          onBack={goHome}
+          initialForm={
+            pending?.exercise_type === "visual_discrimination"
+              ? (pending.form as VDFormState)
+              : undefined
+          }
+        />
+      </>
+    );
+  }
+
+  if (view === "prescription") {
+    return (
+      <>
+        <LanguageToggle className="fixed" />
+        <PrescriptionLoader
+          onBack={goHome}
+          onLoaded={(cfg) => {
+            setPending(cfg);
+            setView(
+              cfg.exercise_type === "tachistoscopic"
+                ? "tachistoscopic"
+                : "discrimination",
+            );
+          }}
+        />
       </>
     );
   }

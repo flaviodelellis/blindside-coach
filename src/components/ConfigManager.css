@@ -1,0 +1,75 @@
+/* Compact, borderless block that blends into its container (summary card or
+   the form's action area). The container provides the visual framing. */
+.config-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1.1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.cfg-title {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.cfg-row {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.cfg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg, #fff);
+  color: var(--text-h);
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.cfg-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.cfg-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.cfg-btn.primary {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.cfg-block {
+  flex: 1;
+}
+
+.cfg-icon {
+  flex: 0 0 auto;
+  padding: 0.4rem 0.55rem;
+}
+
+.cfg-select {
+  flex: 1;
+  min-width: 0;
+  padding: 0.4rem 0.55rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg, #fff);
+  color: var(--text-h);
+}
