@@ -42,6 +42,7 @@ type FormState = {
   language: "it" | "en" | "both";
   length_min: number;
   length_max: number;
+  font_size_px: number;
   position: PositionChoice;
   position_grid: GridState;
   include_pseudowords: boolean;
@@ -54,8 +55,8 @@ type FormState = {
 };
 
 const DEFAULT_FORM: FormState = {
-  n_trials: 20,
-  exposure_ms: 200,
+  n_trials: 5,
+  exposure_ms: 250,
   iti_min_ms: 1000,
   iti_max_ms: 1500,
   word_source: "library",
@@ -63,6 +64,7 @@ const DEFAULT_FORM: FormState = {
   language: "it",
   length_min: 4,
   length_max: 7,
+  font_size_px: 48,
   position: "peripheral_both",
   position_grid: makeEmptyGrid(5, 5),
   include_pseudowords: true,
@@ -111,7 +113,7 @@ function configFromForm(form: FormState): Config {
           include_pseudowords: form.include_pseudowords,
           pseudoword_ratio: form.pseudoword_ratio,
         },
-    font_size_px: 48,
+    font_size_px: form.font_size_px,
     text_color: form.text_color,
     background_color: form.background_color,
     exposure: { kind: "fixed", ms: form.exposure_ms },
@@ -297,6 +299,20 @@ function ConfigureForm({
                     {t("tach.word_source.custom")}
                   </option>
                 </select>
+              </div>
+
+              <div className="form-row">
+                <label htmlFor="font_size_px">
+                  {t("tach.field.word_size")}
+                </label>
+                <NumberField
+                  id="font_size_px"
+                  min={16}
+                  max={200}
+                  step={2}
+                  value={form.font_size_px}
+                  onChange={(n) => update("font_size_px", n)}
+                />
               </div>
 
               {form.word_source === "custom" ? (
@@ -514,7 +530,6 @@ function ConfigureForm({
                     aria-label="max"
                   />
                 </div>
-                <p className="hint">{t("tach.hint.iti")}</p>
               </div>
             </section>
 

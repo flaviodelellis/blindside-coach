@@ -76,8 +76,6 @@ const it: Dict = {
   "tach.field.n_trials": "Numero di tentativi",
   "tach.field.exposure": "Esposizione (ms)",
   "tach.field.iti": "Intervallo tra tentativi (ms)",
-  "tach.hint.iti":
-    "Valore uniforme nel range a ogni tentativo. min = max disattiva il jitter.",
   "tach.field.word_source": "Sorgente parole",
   "tach.word_source.library": "Libreria",
   "tach.word_source.custom": "Lista personalizzata",
@@ -94,6 +92,7 @@ const it: Dict = {
   "tach.lang.en": "Inglese",
   "tach.lang.both": "Entrambe",
   "tach.field.length": "Lunghezza parole (lettere)",
+  "tach.field.word_size": "Dimensione parole (px)",
   "tach.field.position": "Posizione stimoli",
   "tach.pos.peripheral_both": "Periferica (entrambi i lati)",
   "tach.pos.peripheral_left": "Periferica sinistra",
@@ -273,8 +272,6 @@ const en: Dict = {
   "tach.field.n_trials": "Number of trials",
   "tach.field.exposure": "Exposure (ms)",
   "tach.field.iti": "Inter-trial interval (ms)",
-  "tach.hint.iti":
-    "Uniform value within range per trial. min = max disables jitter.",
   "tach.field.word_source": "Word source",
   "tach.word_source.library": "Library",
   "tach.word_source.custom": "Custom list",
@@ -290,6 +287,7 @@ const en: Dict = {
   "tach.lang.en": "English",
   "tach.lang.both": "Both",
   "tach.field.length": "Word length (letters)",
+  "tach.field.word_size": "Word size (px)",
   "tach.field.position": "Stimulus position",
   "tach.pos.peripheral_both": "Peripheral (both sides)",
   "tach.pos.peripheral_left": "Peripheral left",

@@ -8,6 +8,7 @@ import type { WordEntry } from "../../types/wordLibrary";
 import { pickWords } from "../../lib/wordLibrary";
 import { makeRng } from "../../lib/rng";
 import { resolveDuration, resolvePosition } from "../../lib/runtime";
+import { playCue } from "../../lib/audio";
 import { useT } from "../../i18n";
 
 type Config = TachistoscopicExercise["config"];
@@ -68,15 +69,18 @@ export function TachistoscopicRunner({
 
   const cur = params[trialIdx];
 
-  // ITI → flash transition
+  // ITI → flash transition. Each time the clinician launches a presentation
+  // (start, "Prossima", or "Ripeti") the run enters the ITI phase — sound the
+  // "go" cue here so it fires on every word, in clinician mode only.
   useEffect(() => {
     if (phase !== "iti" || !cur) return;
+    if (config.response_mode !== "patient_types") playCue();
     const id = setTimeout(() => {
       flashStartRef.current = performance.now();
       setPhase("flash");
     }, cur.iti_ms);
     return () => clearTimeout(id);
-  }, [phase, cur]);
+  }, [phase, cur, config.response_mode]);
 
   // flash → awaiting transition
   useEffect(() => {

@@ -47,8 +47,8 @@ type FormState = {
 };
 
 const DEFAULT_FORM: FormState = {
-  n_trials: 20,
-  exposure_ms: 200,
+  n_trials: 5,
+  exposure_ms: 250,
   iti_min_ms: 1000,
   iti_max_ms: 1500,
   dimension: "color",
