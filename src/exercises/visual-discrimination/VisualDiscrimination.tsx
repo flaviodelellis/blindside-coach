@@ -1,31 +1,48 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type {
-  DiscriminationStimulusKind,
-  DiscriminationTrial,
+  DiscriminationDimension,
   PositionMode,
   SessionFile,
   VisualDiscriminationExercise,
 } from "../../types/session";
-import { runDiscrimination } from "./engine";
+import { VisualDiscriminationRunner, type EngineResult } from "./Runner";
 import { computeDiscriminationSummary } from "../../lib/summary";
 import { DEFAULT_COLORS } from "./stimuli";
 import { HeatmapReport, type HeatmapPoint } from "../../components/HeatmapReport";
+import { ColorField } from "../../components/ColorField";
+import { NumberField } from "../../components/NumberField";
 import { BackButton } from "../../components/BackButton";
-import "jspsych/css/jspsych.css";
+import {
+  PositionGridSelector,
+  makeEmptyGrid,
+  gridToPositionMode,
+  type GridState,
+} from "../../components/PositionGridSelector";
 import "../tachistoscopic/Tachistoscopic.css";
+import "./VisualDiscrimination.css";
 
 type Config = VisualDiscriminationExercise["config"];
 type Mode = "configure" | "running" | "results";
+
+type PositionChoice =
+  | "central"
+  | "peripheral_left"
+  | "peripheral_right"
+  | "peripheral_both"
+  | "custom_grid";
 
 type FormState = {
   n_trials: number;
   exposure_ms: number;
   iti_min_ms: number;
   iti_max_ms: number;
-  kinds: { shape: boolean; letter: boolean; color: boolean };
+  dimension: DiscriminationDimension;
   stimulus_size_px: number;
   colors: { red: boolean; green: boolean; blue: boolean; yellow: boolean };
-  position: "central" | "peripheral_left" | "peripheral_right" | "peripheral_both";
+  background_color: string;
+  fixation_color: string;
+  position: PositionChoice;
+  position_grid: GridState;
   random_seed: string;
 };
 
@@ -34,10 +51,13 @@ const DEFAULT_FORM: FormState = {
   exposure_ms: 200,
   iti_min_ms: 1000,
   iti_max_ms: 1500,
-  kinds: { shape: true, letter: false, color: false },
+  dimension: "color",
   stimulus_size_px: 80,
   colors: { red: true, green: true, blue: true, yellow: true },
+  background_color: "#000000",
+  fixation_color: "#ffffff",
   position: "peripheral_both",
+  position_grid: makeEmptyGrid(5, 5),
   random_seed: "",
 };
 
@@ -48,8 +68,8 @@ const COLOR_HEX: Record<keyof FormState["colors"], string> = {
   yellow: DEFAULT_COLORS[3],
 };
 
-function positionFromForm(p: FormState["position"]): PositionMode {
-  switch (p) {
+function positionFromForm(form: FormState): PositionMode {
+  switch (form.position) {
     case "central":
       return { kind: "central" };
     case "peripheral_left":
@@ -58,29 +78,52 @@ function positionFromForm(p: FormState["position"]): PositionMode {
       return { kind: "peripheral", side: "right" };
     case "peripheral_both":
       return { kind: "peripheral", side: "both" };
+    case "custom_grid":
+      return gridToPositionMode(form.position_grid) ?? { kind: "peripheral", side: "both" };
   }
 }
 
-function configFromForm(form: FormState): Config | null {
-  const kinds: DiscriminationStimulusKind[] = [];
-  if (form.kinds.shape) kinds.push("shape");
-  if (form.kinds.letter) kinds.push("letter");
-  if (form.kinds.color) kinds.push("color");
-  if (kinds.length === 0) return null;
+function selectedColorCount(form: FormState): number {
+  return (Object.keys(form.colors) as Array<keyof FormState["colors"]>).filter(
+    (c) => form.colors[c],
+  ).length;
+}
 
+/** Returns an error message if the form is not ready, otherwise null. */
+function validateForm(form: FormState): string | null {
+  if (form.dimension === "color" && selectedColorCount(form) < 2) {
+    return "Seleziona almeno due colori da discriminare.";
+  }
+  if (
+    form.dimension !== "position" &&
+    form.position === "custom_grid" &&
+    gridToPositionMode(form.position_grid) === null
+  ) {
+    return "Seleziona almeno una cella nella griglia delle posizioni.";
+  }
+  return null;
+}
+
+function configFromForm(form: FormState): Config {
   const colors = (Object.keys(form.colors) as Array<keyof FormState["colors"]>)
     .filter((c) => form.colors[c])
     .map((c) => COLOR_HEX[c]);
-  if (colors.length === 0) return null;
 
   const seed = form.random_seed.trim() === "" ? undefined : Number(form.random_seed);
 
+  const kinds =
+    form.dimension === "shape"
+      ? (["shape"] as const)
+      : (["color"] as const);
+
   return {
-    stimulus_kinds: kinds,
+    discrimination_dimension: form.dimension,
+    stimulus_kinds: [...kinds],
     stimulus_size_px: form.stimulus_size_px,
-    stimulus_colors: colors,
+    stimulus_colors: colors.length > 0 ? colors : [...DEFAULT_COLORS],
+    background_color: form.background_color,
     n_simultaneous: 1,
-    position_mode: positionFromForm(form.position),
+    position_mode: positionFromForm(form),
     exposure: { kind: "fixed", ms: form.exposure_ms },
     inter_trial_interval: {
       kind: "jitter",
@@ -89,11 +132,13 @@ function configFromForm(form: FormState): Config | null {
       distribution: "uniform",
     },
     n_trials: form.n_trials,
-    response_mode: "keypress",
+    response_mode: "click",
+    response_collector: "clinician",
+    awareness_scale: "binary",
     fixation: {
       position_norm: { x: 0.5, y: 0.5 },
       size_px: 32,
-      color: "#000",
+      color: form.fixation_color,
     },
     feedback: {},
     random_seed: seed,
@@ -101,7 +146,6 @@ function configFromForm(form: FormState): Config | null {
 }
 
 type RunOutcome = {
-  trials: DiscriminationTrial[];
   durationMs: number;
   sessionFile: SessionFile;
 };
@@ -109,65 +153,51 @@ type RunOutcome = {
 export function VisualDiscrimination({ onBack }: { onBack: () => void }) {
   const [mode, setMode] = useState<Mode>("configure");
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
+  const [runConfig, setRunConfig] = useState<Config | null>(null);
   const [outcome, setOutcome] = useState<RunOutcome | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const displayRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (mode !== "running") return;
-    const display = displayRef.current;
-    if (!display) return;
-
-    const config = configFromForm(form);
-    if (!config) {
-      setValidationError("Seleziona almeno un tipo di stimolo e un colore.");
-      setMode("configure");
-      return;
-    }
-
-    void runDiscrimination(config, display).then((engineResult) => {
-      const summary = computeDiscriminationSummary(
-        engineResult.trials,
-        engineResult.duration_ms,
-      );
-      const sessionFile: SessionFile = {
-        schema_version: "1.0",
-        session: {
-          id: crypto.randomUUID(),
-          patient_id: "P-DEMO",
-          started_at: engineResult.started_at,
-          ended_at: engineResult.ended_at,
-          duration_ms: engineResult.duration_ms,
-          app_version: "0.1.0",
-          context: "hospital",
-          screen: {
-            width_px: window.innerWidth,
-            height_px: window.innerHeight,
-            device_pixel_ratio: window.devicePixelRatio,
-          },
+  const handleComplete = (config: Config, engineResult: EngineResult) => {
+    const summary = computeDiscriminationSummary(
+      engineResult.trials,
+      engineResult.duration_ms,
+      config,
+    );
+    const sessionFile: SessionFile = {
+      schema_version: "1.0",
+      session: {
+        id: crypto.randomUUID(),
+        patient_id: "P-DEMO",
+        started_at: engineResult.started_at,
+        ended_at: engineResult.ended_at,
+        duration_ms: engineResult.duration_ms,
+        app_version: "0.1.0",
+        context: "hospital",
+        screen: {
+          width_px: window.innerWidth,
+          height_px: window.innerHeight,
+          device_pixel_ratio: window.devicePixelRatio,
         },
-        exercise: {
-          type: "visual_discrimination",
-          config,
-          trials: engineResult.trials,
-        },
-        events: [],
-        summary,
-      };
-      setOutcome({
+      },
+      exercise: {
+        type: "visual_discrimination",
+        config,
         trials: engineResult.trials,
-        durationMs: engineResult.duration_ms,
-        sessionFile,
-      });
-      setMode("results");
-    });
-  }, [mode, form]);
+      },
+      events: [],
+      summary,
+    };
+    setOutcome({ durationMs: engineResult.duration_ms, sessionFile });
+    setMode("results");
+  };
 
-  if (mode === "running") {
+  if (mode === "running" && runConfig) {
     return (
-      <div className="tach-host">
-        <div ref={displayRef} className="tach-display" />
-      </div>
+      <VisualDiscriminationRunner
+        config={runConfig}
+        onComplete={(r) => handleComplete(runConfig, r)}
+        onCancel={() => setMode("configure")}
+      />
     );
   }
 
@@ -193,11 +223,12 @@ export function VisualDiscrimination({ onBack }: { onBack: () => void }) {
         setValidationError(null);
       }}
       onStart={() => {
-        const config = configFromForm(form);
-        if (!config) {
-          setValidationError("Seleziona almeno un tipo di stimolo e un colore.");
+        const error = validateForm(form);
+        if (error) {
+          setValidationError(error);
           return;
         }
+        setRunConfig(configFromForm(form));
         setMode("running");
       }}
       onBack={onBack}
@@ -226,137 +257,154 @@ function ConfigureForm({
       <BackButton onClick={onBack} className="fixed" />
       <header>
         <h1>Discriminazione visiva</h1>
-        <p className="subtitle">Configura la sessione e premi Avvia.</p>
       </header>
 
       <section className="form">
         <div className="form-row">
-          <label htmlFor="n_trials">Numero di trial</label>
-          <input
+          <label htmlFor="dimension">Cosa deve discriminare il paziente</label>
+          <select
+            id="dimension"
+            value={form.dimension}
+            onChange={(e) =>
+              update("dimension", e.target.value as DiscriminationDimension)
+            }
+          >
+            <option value="color">Colore</option>
+            <option value="shape">Forma</option>
+            <option value="position">Posizione (sinistra / destra)</option>
+          </select>
+        </div>
+
+        <div className="form-row">
+          <label htmlFor="n_trials">Numero di tentativi</label>
+          <NumberField
             id="n_trials"
-            type="number"
             min={1}
             max={500}
             value={form.n_trials}
-            onChange={(e) => update("n_trials", Number(e.target.value))}
+            onChange={(n) => update("n_trials", n)}
           />
         </div>
 
         <div className="form-row">
           <label htmlFor="exposure_ms">Esposizione (ms)</label>
-          <input
+          <NumberField
             id="exposure_ms"
-            type="number"
-            min={20}
+            min={50}
             max={2000}
-            step={10}
+            step={50}
             value={form.exposure_ms}
-            onChange={(e) => update("exposure_ms", Number(e.target.value))}
+            onChange={(n) => update("exposure_ms", n)}
           />
         </div>
 
         <div className="form-row">
-          <label>Intervallo tra trial (ms)</label>
+          <label>Intervallo tra tentativi (ms)</label>
           <div className="dual-input">
-            <input
-              type="number"
+            <NumberField
               min={200}
               max={5000}
               step={50}
               value={form.iti_min_ms}
-              onChange={(e) => update("iti_min_ms", Number(e.target.value))}
+              onChange={(n) => update("iti_min_ms", n)}
               aria-label="min"
             />
             <span>–</span>
-            <input
-              type="number"
+            <NumberField
               min={200}
               max={5000}
               step={50}
               value={form.iti_max_ms}
-              onChange={(e) => update("iti_max_ms", Number(e.target.value))}
+              onChange={(n) => update("iti_max_ms", n)}
               aria-label="max"
             />
           </div>
         </div>
 
         <div className="form-row">
-          <label>Tipo di stimolo</label>
-          <div className="multi-check">
-            <label>
-              <input
-                type="checkbox"
-                checked={form.kinds.shape}
-                onChange={(e) => update("kinds", { ...form.kinds, shape: e.target.checked })}
-              />
-              Forme
-            </label>
-            <label>
-              <input
-                type="checkbox"
-                checked={form.kinds.letter}
-                onChange={(e) => update("kinds", { ...form.kinds, letter: e.target.checked })}
-              />
-              Lettere
-            </label>
-            <label>
-              <input
-                type="checkbox"
-                checked={form.kinds.color}
-                onChange={(e) => update("kinds", { ...form.kinds, color: e.target.checked })}
-              />
-              Colori
-            </label>
-          </div>
-        </div>
-
-        <div className="form-row">
           <label htmlFor="stim_size">Dimensione stimolo (px)</label>
-          <input
+          <NumberField
             id="stim_size"
-            type="number"
             min={20}
             max={400}
             step={5}
             value={form.stimulus_size_px}
-            onChange={(e) => update("stimulus_size_px", Number(e.target.value))}
+            onChange={(n) => update("stimulus_size_px", n)}
           />
         </div>
 
-        <div className="form-row">
-          <label>Colori</label>
-          <div className="multi-check">
-            {(Object.keys(form.colors) as Array<keyof FormState["colors"]>).map((c) => (
-              <label key={c}>
-                <input
-                  type="checkbox"
-                  checked={form.colors[c]}
-                  onChange={(e) => update("colors", { ...form.colors, [c]: e.target.checked })}
-                />
-                <span
-                  className="color-swatch"
-                  style={{ background: COLOR_HEX[c] }}
-                  aria-hidden
-                />
-                {colorLabel(c)}
-              </label>
-            ))}
-          </div>
-        </div>
+        <ColorField
+          id="vd_background_color"
+          label="Colore di sfondo"
+          value={form.background_color}
+          onChange={(c) => update("background_color", c)}
+        />
 
-        <div className="form-row">
-          <label htmlFor="position">Posizione stimoli</label>
-          <select
-            id="position"
-            value={form.position}
-            onChange={(e) => update("position", e.target.value as FormState["position"])}
-          >
-            <option value="peripheral_both">Periferica (entrambi i lati)</option>
-            <option value="peripheral_left">Periferica sinistra</option>
-            <option value="peripheral_right">Periferica destra</option>
-            <option value="central">Centrale</option>
-          </select>
-        </div>
+        <ColorField
+          id="vd_fixation_color"
+          label="Colore punto di fissazione"
+          value={form.fixation_color}
+          onChange={(c) => update("fixation_color", c)}
+        />
+
+        {form.dimension === "color" && (
+          <div className="form-row">
+            <label>Colori da discriminare</label>
+            <div className="multi-check">
+              {(Object.keys(form.colors) as Array<keyof FormState["colors"]>).map(
+                (c) => (
+                  <label key={c}>
+                    <input
+                      type="checkbox"
+                      checked={form.colors[c]}
+                      onChange={(e) =>
+                        update("colors", { ...form.colors, [c]: e.target.checked })
+                      }
+                    />
+                    <span
+                      className="color-swatch"
+                      style={{ background: COLOR_HEX[c] }}
+                      aria-hidden
+                    />
+                    {colorName(c)}
+                  </label>
+                ),
+              )}
+            </div>
+          </div>
+        )}
+
+        {form.dimension !== "position" && (
+          <>
+            <div className="form-row">
+              <label htmlFor="position">Posizione stimoli</label>
+              <select
+                id="position"
+                value={form.position}
+                onChange={(e) =>
+                  update("position", e.target.value as PositionChoice)
+                }
+              >
+                <option value="peripheral_both">Periferica (entrambi i lati)</option>
+                <option value="peripheral_left">Periferica sinistra</option>
+                <option value="peripheral_right">Periferica destra</option>
+                <option value="central">Centrale</option>
+                <option value="custom_grid">Griglia personalizzata</option>
+              </select>
+            </div>
+
+            {form.position === "custom_grid" && (
+              <div className="form-row full">
+                <label>Zone consentite</label>
+                <PositionGridSelector
+                  grid={form.position_grid}
+                  onChange={(g) => update("position_grid", g)}
+                  fixationNorm={{ x: 0.5, y: 0.5 }}
+                />
+              </div>
+            )}
+          </>
+        )}
 
         <div className="form-row">
           <label htmlFor="random_seed">Random seed (opzionale)</label>
@@ -393,23 +441,17 @@ function Results({
 }) {
   const { sessionFile } = outcome;
   const s = sessionFile.summary;
+  const bs = s.blindsight;
 
-  const cfg =
+  const trials =
     sessionFile.exercise.type === "visual_discrimination"
-      ? sessionFile.exercise.config
-      : null;
-  const requestedMs = cfg?.exposure.kind === "fixed" ? cfg.exposure.ms : null;
-  const measuredAvg =
-    outcome.trials.length > 0
-      ? outcome.trials.reduce((sum, t) => sum + (t.t_end_ms - t.t_start_ms), 0) /
-        outcome.trials.length
-      : 0;
-  const meanDelta = requestedMs !== null ? measuredAvg - requestedMs : null;
+      ? sessionFile.exercise.trials
+      : [];
 
-  const heatmapPoints: HeatmapPoint[] = outcome.trials.flatMap((tr) =>
-    tr.stimuli.map((s) => ({
-      position: s.position_norm,
-      correct: tr.response.given === true && tr.correct !== false,
+  const heatmapPoints: HeatmapPoint[] = trials.flatMap((tr) =>
+    tr.stimuli.map((st) => ({
+      position: st.position_norm,
+      correct: tr.correct === true,
       rt_ms: tr.response.rt_ms,
     })),
   );
@@ -421,6 +463,8 @@ function Results({
     sessionFile.exercise.type === "visual_discrimination"
       ? sessionFile.exercise.config.fixation.position_norm
       : { x: 0.5, y: 0.5 };
+
+  const pct = (v?: number) => (v !== undefined ? `${(v * 100).toFixed(0)}%` : "-");
 
   const download = () => {
     const blob = new Blob([JSON.stringify(sessionFile, null, 2)], {
@@ -443,16 +487,30 @@ function Results({
         <h1>Risultati</h1>
         <p className="subtitle">
           Sessione di {Math.round(outcome.durationMs / 1000)} secondi,{" "}
-          {s.n_trials} trial completati.
+          {s.n_trials} tentativi completati.
         </p>
       </header>
 
       <section className="result-grid">
-        <div className="metric">
-          <div className="metric-label">Accuracy</div>
-          <div className="metric-value">
-            {s.accuracy !== undefined ? `${(s.accuracy * 100).toFixed(0)}%` : "-"}
+        {bs && (
+          <div className="metric">
+            <div className="metric-label">Rilevati</div>
+            <div className="metric-value">
+              {pct(s.n_trials > 0 ? bs.n_aware / s.n_trials : undefined)}
+            </div>
+            <div className="metric-sub">
+              {bs.n_aware}/{s.n_trials} visti
+            </div>
           </div>
+        )}
+        <div className="metric metric-highlight">
+          <div className="metric-label">Identificazione</div>
+          <div className="metric-value">{pct(bs?.accuracy_aware)}</div>
+          {bs && (
+            <div className="metric-sub">
+              corrette tra i rilevati · caso {pct(bs.chance_level)}
+            </div>
+          )}
         </div>
         <div className="metric">
           <div className="metric-label">RT medio</div>
@@ -460,13 +518,16 @@ function Results({
             {s.rt_mean_ms !== undefined ? `${Math.round(s.rt_mean_ms)} ms` : "-"}
           </div>
         </div>
-        <div className="metric">
-          <div className="metric-label">Delta esposizione</div>
-          <div className="metric-value">
-            {meanDelta !== null ? `${meanDelta.toFixed(1)} ms` : "-"}
-          </div>
-        </div>
       </section>
+
+      {bs && (
+        <p className="form-hint">
+          <b>Rilevati</b>: quante volte il paziente ha visto lo stimolo.{" "}
+          <b>Identificazione</b>: tra i rilevati, quante volte ha indicato la
+          risposta corretta (livello di caso {pct(bs.chance_level)}). La heatmap
+          mostra dove l'identificazione è corretta nel campo visivo.
+        </p>
+      )}
 
       {heatmapPoints.length > 0 && (
         <HeatmapReport
@@ -484,7 +545,7 @@ function Results({
               <tr>
                 <th>Quadrante</th>
                 <th>Presentati</th>
-                <th>Rilevati</th>
+                <th>Corrette</th>
                 <th>RT medio</th>
               </tr>
             </thead>
@@ -518,7 +579,7 @@ function Results({
   );
 }
 
-function colorLabel(c: keyof FormState["colors"]): string {
+function colorName(c: keyof FormState["colors"]): string {
   switch (c) {
     case "red":
       return "Rosso";

@@ -112,7 +112,7 @@
   opacity: 0.85;
 }
 
-.cell.fixation {
+.cell.is-fixation:not(.on) {
   background: repeating-linear-gradient(
     45deg,
     var(--bg),
@@ -120,10 +120,16 @@
     var(--border) 6px,
     var(--border) 7px
   );
-  cursor: not-allowed;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+}
+
+.cell.is-fixation:not(.on):hover {
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(170, 59, 255, 0.06),
+    rgba(170, 59, 255, 0.06) 6px,
+    var(--border) 6px,
+    var(--border) 7px
+  );
 }
 
 .fix-marker {
@@ -134,6 +140,11 @@
   font-weight: 700;
   user-select: none;
   pointer-events: none;
+}
+
+.fix-marker.on {
+  color: #fff;
+  opacity: 1;
 }
 
 .grid-hint {

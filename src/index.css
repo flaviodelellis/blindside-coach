@@ -1,3 +1,9 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 :root {
   --paper: #fdfcf8;
   --paper-2: #f4f3ef;
@@ -15,27 +21,11 @@
   --mono: ui-monospace, Consolas, monospace;
 
   font: 16px/1.5 var(--sans);
-  color-scheme: light dark;
+  color-scheme: light;
   color: var(--text-h);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #16171d;
-    --paper-2: #1d1e25;
-    --rule: #2a2b32;
-    --text: #9ca3af;
-    --text-h: #e7e7ea;
-    --bg: var(--paper);
-    --bg-2: var(--paper-2);
-    --border: var(--rule);
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.12);
-    --accent-border: rgba(192, 132, 252, 0.5);
-  }
 }
 
 body {

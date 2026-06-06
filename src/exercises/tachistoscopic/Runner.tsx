@@ -242,7 +242,7 @@ function Instructions({
   const t = useT();
   const patientMode = config.response_mode === "patient_types";
   return (
-    <div className="tach-host" style={{ background: config.background_color }}>
+    <div className="tach-host" style={{ background: "#fff", color: "#16171d" }}>
       <div className="tach-instructions">
         <h2>
           {patientMode

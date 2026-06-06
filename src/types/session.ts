@@ -60,16 +60,25 @@ export type PresentedStimulus = {
   size_px: number;
 };
 
+export type DiscriminationDimension = "color" | "shape" | "position";
+
 export type DiscriminationTrial = {
   trial_id: number;
   t_start_ms: number;
   t_end_ms: number;
   stimuli: PresentedStimulus[];
+  /** The forced-choice dimension under test for this trial. */
+  dimension: DiscriminationDimension;
+  /** The correct alternative the patient should pick (color hex, shape name, or "left"/"right"). */
   expected_response?: string;
   response: {
+    /** Forced choice: a guess is always recorded. Kept for schema compatibility. */
     given: boolean;
+    /** The patient's forced-choice guess. */
     value?: string;
     rt_ms?: number;
+    /** Patient's subjective awareness: did they report seeing anything? */
+    aware?: boolean;
   };
   correct?: boolean;
 };
@@ -77,16 +86,23 @@ export type DiscriminationTrial = {
 export type VisualDiscriminationExercise = {
   type: "visual_discrimination";
   config: {
+    /** Which feature the patient must guess in forced choice. */
+    discrimination_dimension: DiscriminationDimension;
     stimulus_kinds: DiscriminationStimulusKind[];
     stimulus_size_px: number;
     stimulus_colors: string[];
     outline_color?: string;
+    background_color: string;
     n_simultaneous: number;
     position_mode: PositionMode;
     exposure: Duration;
     inter_trial_interval: Duration;
     n_trials: number;
     response_mode: "keypress" | "click" | "none";
+    /** Who records the response. Blindsight protocol uses clinician-recorded answers. */
+    response_collector: "clinician" | "patient";
+    /** Awareness scale collected alongside the forced choice. */
+    awareness_scale: "binary";
     fixation: FixationPoint;
     fixation_check?: FixationCheckConfig;
     feedback: FeedbackConfig;
@@ -205,6 +221,8 @@ export type QuadrantStats = {
   n_presented: number;
   n_detected: number;
   rt_mean_ms?: number;
+  /** Mean number of re-exposures ("Ripeti") needed for stimuli in this quadrant. */
+  rep_mean?: number;
 };
 
 export type SessionSummary = {
@@ -237,10 +255,45 @@ export type SessionSummary = {
     n_trials: number;
     accuracy?: number;
     rt_mean_ms?: number;
+    /** Mean number of re-exposures ("Ripeti") per trial within this block. */
+    rep_mean?: number;
   }>;
+  /**
+   * Re-exposure ("Ripeti") analysis for tachistoscopic clinical mode. The number
+   * of times the clinician re-flashed a word before the patient recognized it is
+   * a behavioral proxy for the effective exposure threshold.
+   */
+  repetitions?: {
+    mean: number;
+    median: number;
+    max: number;
+    /** Fraction of trials recognized at first exposure (0 re-exposures). */
+    pct_first_exposure: number;
+    /** Fraction of trials needing >= 3 re-exposures. */
+    pct_three_plus: number;
+    /** Distribution of re-exposure counts across trials, ascending by count. */
+    histogram: Array<{ reps: number; count: number }>;
+    /**
+     * mean(left-hemifield reps) - mean(right-hemifield reps). Positive means the
+     * left visual field needed more re-exposures (relevant for neglect/hemianopia).
+     */
+    asymmetry_lr?: number;
+  };
   recognition_breakdown?: {
     real_words: { n_presented: number; n_correct: number; rt_mean_ms?: number };
     pseudowords: { n_presented: number; n_correct: number; rt_mean_ms?: number };
+  };
+  /** Forced-choice + awareness dissociation (visual discrimination / blindsight). */
+  blindsight?: {
+    dimension: DiscriminationDimension;
+    /** Probability of a correct guess by chance (1 / number of alternatives). */
+    chance_level: number;
+    n_aware: number;
+    n_unaware: number;
+    /** Forced-choice accuracy on trials the patient reported seeing. */
+    accuracy_aware?: number;
+    /** Forced-choice accuracy on trials the patient reported NOT seeing (blindsight). */
+    accuracy_unaware?: number;
   };
 };
 

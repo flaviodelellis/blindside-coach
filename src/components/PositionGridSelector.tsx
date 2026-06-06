@@ -32,12 +32,7 @@ function fixationCell(
   };
 }
 
-export function gridToPositionMode(
-  grid: GridState,
-  fix: { x: number; y: number } = { x: 0.5, y: 0.5 },
-): PositionMode | null {
-  const fc = fixationCell(grid.rows, grid.cols, fix);
-
+export function gridToPositionMode(grid: GridState): PositionMode | null {
   const toRegion = (r: number, c: number) => ({
     x: c / grid.cols,
     y: r / grid.rows,
@@ -48,7 +43,6 @@ export function gridToPositionMode(
   const active: Array<{ r: number; c: number; weight: number }> = [];
   for (let r = 0; r < grid.rows; r++) {
     for (let c = 0; c < grid.cols; c++) {
-      if (r === fc.r && c === fc.c) continue;
       const v = grid.cells[r]?.[c] ?? 0;
       if (v > 0) active.push({ r, c, weight: v });
     }
@@ -92,7 +86,6 @@ export function PositionGridSelector({ grid, onChange, fixationNorm }: Props) {
   });
 
   const cycleCell = (r: number, c: number) => {
-    if (r === fixCell.r && c === fixCell.c) return;
     const next = grid.cells.map((row) => row.slice());
     if (grid.weighted) {
       next[r][c] = (next[r][c] + 1) % (MAX_WEIGHT + 1);
@@ -113,25 +106,23 @@ export function PositionGridSelector({ grid, onChange, fixationNorm }: Props) {
     let s = 0;
     for (let r = 0; r < grid.rows; r++) {
       for (let c = 0; c < grid.cols; c++) {
-        if (r === fixCell.r && c === fixCell.c) continue;
         const v = grid.cells[r]?.[c] ?? 0;
         if (v > 0) s += v;
       }
     }
     return s;
-  }, [grid.cells, grid.rows, grid.cols, fixCell.r, fixCell.c]);
+  }, [grid.cells, grid.rows, grid.cols]);
 
   const activeCount = useMemo(() => {
     let n = 0;
     for (let r = 0; r < grid.rows; r++) {
       for (let c = 0; c < grid.cols; c++) {
-        if (r === fixCell.r && c === fixCell.c) continue;
         const v = grid.cells[r]?.[c] ?? 0;
         if (v > 0) n += 1;
       }
     }
     return n;
-  }, [grid.cells, grid.rows, grid.cols, fixCell.r, fixCell.c]);
+  }, [grid.cells, grid.rows, grid.cols]);
 
   const t = useT();
   return (
@@ -191,17 +182,6 @@ export function PositionGridSelector({ grid, onChange, fixationNorm }: Props) {
           {grid.cells.map((row, r) =>
             row.map((v, c) => {
               const isFix = r === fixCell.r && c === fixCell.c;
-              if (isFix) {
-                return (
-                  <div
-                    key={`${r}-${c}`}
-                    className="cell fixation"
-                    aria-label={t("grid.fix.label")}
-                  >
-                    <span className="fix-marker">+</span>
-                  </div>
-                );
-              }
               const enabled = v > 0;
               const pct =
                 grid.weighted && totalWeight > 0 && enabled
@@ -211,17 +191,33 @@ export function PositionGridSelector({ grid, onChange, fixationNorm }: Props) {
                 <button
                   key={`${r}-${c}`}
                   type="button"
-                  className={`cell${enabled ? " on" : ""}`}
+                  className={`cell${enabled ? " on" : ""}${isFix ? " is-fixation" : ""}`}
                   onClick={() => cycleCell(r, c)}
-                  aria-label={`riga ${r + 1} colonna ${c + 1}${enabled ? `, peso ${v}` : ""}`}
+                  aria-label={
+                    isFix
+                      ? `${t("grid.fix.label")}${enabled ? `, ${t("grid.fix.selected")}` : ""}`
+                      : `riga ${r + 1} colonna ${c + 1}${enabled ? `, peso ${v}` : ""}`
+                  }
                 >
-                  {enabled && grid.weighted && (
+                  {isFix && !enabled && (
+                    <span className="fix-marker" aria-hidden>
+                      +
+                    </span>
+                  )}
+                  {enabled && grid.weighted ? (
                     <span className="weight">
                       <span className="weight-num">{v}</span>
                       {pct !== null && (
                         <span className="weight-pct">{pct}%</span>
                       )}
                     </span>
+                  ) : (
+                    isFix &&
+                    enabled && (
+                      <span className="fix-marker on" aria-hidden>
+                        +
+                      </span>
+                    )
                   )}
                 </button>
               );

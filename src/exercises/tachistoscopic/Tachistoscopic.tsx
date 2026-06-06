@@ -2,6 +2,7 @@ import { useState } from "react";
 import type {
   PositionMode,
   SessionFile,
+  SessionSummary,
   TachistoscopicExercise,
   TachistoscopicTrial,
 } from "../../types/session";
@@ -14,6 +15,8 @@ import {
   type GridState,
 } from "../../components/PositionGridSelector";
 import { HeatmapReport, type HeatmapPoint } from "../../components/HeatmapReport";
+import { ColorField } from "../../components/ColorField";
+import { NumberField } from "../../components/NumberField";
 import { BackButton } from "../../components/BackButton";
 import { LanguageToggle, useT } from "../../i18n";
 import "./Tachistoscopic.css";
@@ -27,11 +30,15 @@ type PositionChoice =
   | "peripheral_both"
   | "custom_grid";
 
+type WordSource = "library" | "custom";
+
 type FormState = {
   n_trials: number;
   exposure_ms: number;
   iti_min_ms: number;
   iti_max_ms: number;
+  word_source: WordSource;
+  custom_words: string;
   language: "it" | "en" | "both";
   length_min: number;
   length_max: number;
@@ -40,6 +47,9 @@ type FormState = {
   include_pseudowords: boolean;
   pseudoword_ratio: number;
   patient_self_test: boolean;
+  background_color: string;
+  text_color: string;
+  fixation_color: string;
   random_seed: string;
 };
 
@@ -48,6 +58,8 @@ const DEFAULT_FORM: FormState = {
   exposure_ms: 200,
   iti_min_ms: 1000,
   iti_max_ms: 1500,
+  word_source: "library",
+  custom_words: "",
   language: "it",
   length_min: 4,
   length_max: 7,
@@ -56,8 +68,19 @@ const DEFAULT_FORM: FormState = {
   include_pseudowords: true,
   pseudoword_ratio: 0.3,
   patient_self_test: false,
+  background_color: "#000000",
+  text_color: "#ffffff",
+  fixation_color: "#ffffff",
   random_seed: "",
 };
+
+/** Split a free-text custom word list on newlines or commas. */
+function parseCustomWords(text: string): string[] {
+  return text
+    .split(/[\n,]/)
+    .map((w) => w.trim())
+    .filter((w) => w.length > 0);
+}
 
 function positionFromForm(form: FormState): PositionMode {
   switch (form.position) {
@@ -76,17 +99,21 @@ function positionFromForm(form: FormState): PositionMode {
 
 function configFromForm(form: FormState): Config {
   const seed = form.random_seed.trim() === "" ? undefined : Number(form.random_seed);
+  const customWords = parseCustomWords(form.custom_words);
+  const isCustom = form.word_source === "custom";
   return {
-    word_pool: {
-      kind: "library",
-      language: form.language,
-      length_range: [form.length_min, form.length_max],
-      include_pseudowords: form.include_pseudowords,
-      pseudoword_ratio: form.pseudoword_ratio,
-    },
+    word_pool: isCustom
+      ? { kind: "inline", words: customWords }
+      : {
+          kind: "library",
+          language: form.language,
+          length_range: [form.length_min, form.length_max],
+          include_pseudowords: form.include_pseudowords,
+          pseudoword_ratio: form.pseudoword_ratio,
+        },
     font_size_px: 48,
-    text_color: "#000",
-    background_color: "#fff",
+    text_color: form.text_color,
+    background_color: form.background_color,
     exposure: { kind: "fixed", ms: form.exposure_ms },
     inter_trial_interval: {
       kind: "jitter",
@@ -94,14 +121,14 @@ function configFromForm(form: FormState): Config {
       max_ms: form.iti_max_ms,
       distribution: "uniform",
     },
-    n_trials: form.n_trials,
+    n_trials: isCustom ? customWords.length : form.n_trials,
     position_mode: positionFromForm(form),
     response_mode: form.patient_self_test ? "patient_types" : "clinician_marks",
     clinician_captures: form.patient_self_test ? undefined : ["detection"],
     fixation: {
       position_norm: { x: 0.5, y: 0.5 },
       size_px: 32,
-      color: "#000",
+      color: form.fixation_color,
     },
     feedback: {},
     random_seed: seed,
@@ -209,6 +236,10 @@ function ConfigureForm({
     form.position === "custom_grid" &&
     gridToPositionMode(form.position_grid) === null;
 
+  const customWordCount = parseCustomWords(form.custom_words).length;
+  const customEmpty = form.word_source === "custom" && customWordCount === 0;
+  const cannotStart = gridEmpty || customEmpty;
+
   return (
     <>
       <header className="config-topbar">
@@ -249,78 +280,116 @@ function ConfigureForm({
             <section className="form-section">
               <h2 className="form-section-title">{t("tach.section.stimuli")}</h2>
               <div className="form-row">
-                <label htmlFor="language">{t("tach.field.language")}</label>
+                <label htmlFor="word_source">
+                  {t("tach.field.word_source")}
+                </label>
                 <select
-                  id="language"
-                  value={form.language}
+                  id="word_source"
+                  value={form.word_source}
                   onChange={(e) =>
-                    update("language", e.target.value as FormState["language"])
+                    update("word_source", e.target.value as WordSource)
                   }
                 >
-                  <option value="it">{t("tach.lang.it")}</option>
-                  <option value="en">{t("tach.lang.en")}</option>
-                  <option value="both">{t("tach.lang.both")}</option>
+                  <option value="library">
+                    {t("tach.word_source.library")}
+                  </option>
+                  <option value="custom">
+                    {t("tach.word_source.custom")}
+                  </option>
                 </select>
               </div>
 
-              <div className="form-row">
-                <label>{t("tach.field.length")}</label>
-                <div className="dual-input">
-                  <input
-                    type="number"
-                    min={2}
-                    max={15}
-                    value={form.length_min}
-                    onChange={(e) =>
-                      update("length_min", Number(e.target.value))
-                    }
-                    aria-label="min"
-                  />
-                  <span>–</span>
-                  <input
-                    type="number"
-                    min={2}
-                    max={15}
-                    value={form.length_max}
-                    onChange={(e) =>
-                      update("length_max", Number(e.target.value))
-                    }
-                    aria-label="max"
-                  />
-                </div>
-              </div>
-
-              <div className="form-row checkbox">
-                <input
-                  id="include_pseudo"
-                  type="checkbox"
-                  checked={form.include_pseudowords}
-                  onChange={(e) =>
-                    update("include_pseudowords", e.target.checked)
-                  }
-                />
-                <label htmlFor="include_pseudo">
-                  {t("tach.field.include_pseudo")}
-                </label>
-              </div>
-
-              {form.include_pseudowords && (
-                <div className="form-row">
-                  <label htmlFor="pseudo_ratio">
-                    {t("tach.field.pseudo_ratio")}
+              {form.word_source === "custom" ? (
+                <div className="form-row full">
+                  <label htmlFor="custom_words">
+                    {t("tach.field.custom_words")}
                   </label>
-                  <input
-                    id="pseudo_ratio"
-                    type="number"
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    value={form.pseudoword_ratio}
-                    onChange={(e) =>
-                      update("pseudoword_ratio", Number(e.target.value))
-                    }
+                  <textarea
+                    id="custom_words"
+                    className="custom-words-input"
+                    rows={6}
+                    placeholder={t("tach.placeholder.custom_words")}
+                    value={form.custom_words}
+                    onChange={(e) => update("custom_words", e.target.value)}
                   />
+                  <p className="hint">
+                    {t("tach.hint.custom_words", {
+                      n: parseCustomWords(form.custom_words).length,
+                    })}
+                  </p>
                 </div>
+              ) : (
+                <>
+                  <div className="form-row">
+                    <label htmlFor="language">{t("tach.field.language")}</label>
+                    <select
+                      id="language"
+                      value={form.language}
+                      onChange={(e) =>
+                        update(
+                          "language",
+                          e.target.value as FormState["language"],
+                        )
+                      }
+                    >
+                      <option value="it">{t("tach.lang.it")}</option>
+                      <option value="en">{t("tach.lang.en")}</option>
+                      <option value="both">{t("tach.lang.both")}</option>
+                    </select>
+                  </div>
+
+                  <div className="form-row">
+                    <label>{t("tach.field.length")}</label>
+                    <div className="dual-input">
+                      <NumberField
+                        min={2}
+                        max={15}
+                        value={form.length_min}
+                        onChange={(n) => update("length_min", n)}
+                        aria-label="min"
+                      />
+                      <span>–</span>
+                      <NumberField
+                        min={2}
+                        max={15}
+                        value={form.length_max}
+                        onChange={(n) => update("length_max", n)}
+                        aria-label="max"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-row checkbox">
+                    <input
+                      id="include_pseudo"
+                      type="checkbox"
+                      checked={form.include_pseudowords}
+                      onChange={(e) =>
+                        update("include_pseudowords", e.target.checked)
+                      }
+                    />
+                    <label htmlFor="include_pseudo">
+                      {t("tach.field.include_pseudo")}
+                    </label>
+                  </div>
+
+                  {form.include_pseudowords && (
+                    <div className="form-row">
+                      <label htmlFor="pseudo_ratio">
+                        {t("tach.field.pseudo_ratio")}
+                      </label>
+                      <NumberField
+                        id="pseudo_ratio"
+                        min={0}
+                        max={1}
+                        step={0.05}
+                        inputMode="decimal"
+                        value={form.pseudoword_ratio}
+                        onChange={(n) => update("pseudoword_ratio", n)}
+                      />
+                    </div>
+                  )}
+                </>
               )}
             </section>
 
@@ -363,60 +432,85 @@ function ConfigureForm({
             </section>
 
             <section className="form-section">
+              <h2 className="form-section-title">
+                {t("tach.section.appearance")}
+              </h2>
+              <ColorField
+                id="background_color"
+                label={t("tach.field.background_color")}
+                value={form.background_color}
+                onChange={(c) => update("background_color", c)}
+              />
+              <ColorField
+                id="text_color"
+                label={t("tach.field.text_color")}
+                value={form.text_color}
+                onChange={(c) => update("text_color", c)}
+              />
+              <ColorField
+                id="fixation_color"
+                label={t("tach.field.fixation_color")}
+                value={form.fixation_color}
+                onChange={(c) => update("fixation_color", c)}
+              />
+            </section>
+
+            <section className="form-section">
               <h2 className="form-section-title">{t("tach.section.timing")}</h2>
-              <div className="form-row">
-                <label htmlFor="n_trials">{t("tach.field.n_trials")}</label>
-                <input
-                  id="n_trials"
-                  type="number"
-                  min={1}
-                  max={500}
-                  value={form.n_trials}
-                  onChange={(e) => update("n_trials", Number(e.target.value))}
-                />
-              </div>
+              {form.word_source === "custom" ? (
+                <div className="form-row">
+                  <label>{t("tach.field.n_trials")}</label>
+                  <span className="derived-value">
+                    {t("tach.n_trials.from_list", {
+                      n: parseCustomWords(form.custom_words).length,
+                    })}
+                  </span>
+                </div>
+              ) : (
+                <div className="form-row">
+                  <label htmlFor="n_trials">{t("tach.field.n_trials")}</label>
+                  <NumberField
+                    id="n_trials"
+                    min={1}
+                    max={500}
+                    value={form.n_trials}
+                    onChange={(n) => update("n_trials", n)}
+                  />
+                </div>
+              )}
 
               <div className="form-row">
                 <label htmlFor="exposure_ms">
                   {t("tach.field.exposure")}
                 </label>
-                <input
+                <NumberField
                   id="exposure_ms"
-                  type="number"
-                  min={20}
+                  min={50}
                   max={2000}
-                  step={1}
+                  step={50}
                   value={form.exposure_ms}
-                  onChange={(e) =>
-                    update("exposure_ms", Number(e.target.value))
-                  }
+                  onChange={(n) => update("exposure_ms", n)}
                 />
               </div>
 
               <div className="form-row full">
                 <label>{t("tach.field.iti")}</label>
                 <div className="dual-input">
-                  <input
-                    type="number"
+                  <NumberField
                     min={0}
                     max={10000}
-                    step={1}
+                    step={50}
                     value={form.iti_min_ms}
-                    onChange={(e) =>
-                      update("iti_min_ms", Number(e.target.value))
-                    }
+                    onChange={(n) => update("iti_min_ms", n)}
                     aria-label="min"
                   />
                   <span>–</span>
-                  <input
-                    type="number"
+                  <NumberField
                     min={0}
                     max={10000}
-                    step={1}
+                    step={50}
                     value={form.iti_max_ms}
-                    onChange={(e) =>
-                      update("iti_max_ms", Number(e.target.value))
-                    }
+                    onChange={(n) => update("iti_max_ms", n)}
                     aria-label="max"
                   />
                 </div>
@@ -449,10 +543,15 @@ function ConfigureForm({
               {t("tach.grid.empty_error")}
             </div>
           )}
+          {customEmpty && (
+            <div className="validation-error">
+              {t("tach.custom_words.empty_error")}
+            </div>
+          )}
         </div>
 
         <aside className="form-summary">
-          <LiveSummary form={form} onStart={onStart} disabled={gridEmpty} />
+          <LiveSummary form={form} onStart={onStart} disabled={cannotStart} />
         </aside>
       </div>
     </main>
@@ -471,21 +570,28 @@ function LiveSummary({
 }) {
   const t = useT();
 
+  const isCustom = form.word_source === "custom";
+  const customCount = parseCustomWords(form.custom_words).length;
+
   const lenText =
     form.length_min === form.length_max
       ? `${form.length_min}`
       : `${form.length_min}–${form.length_max}`;
   const langText = t(`tach.summary.lang.${form.language}`);
-  const stimuliMain = t("tach.summary.stimuli.words", {
-    n: form.n_trials,
-    lang: langText,
-    len: lenText,
-  });
-  const pseudoLine = form.include_pseudowords
-    ? t("tach.summary.stimuli.pseudo", {
-        pct: Math.round(form.pseudoword_ratio * 100),
-      })
-    : t("tach.summary.stimuli.no_pseudo");
+  const stimuliMain = isCustom
+    ? t("tach.summary.stimuli.custom", { n: customCount })
+    : t("tach.summary.stimuli.words", {
+        n: form.n_trials,
+        lang: langText,
+        len: lenText,
+      });
+  const pseudoLine = isCustom
+    ? t("tach.summary.stimuli.custom_sub")
+    : form.include_pseudowords
+      ? t("tach.summary.stimuli.pseudo", {
+          pct: Math.round(form.pseudoword_ratio * 100),
+        })
+      : t("tach.summary.stimuli.no_pseudo");
 
   let positionText: string;
   if (form.position === "custom_grid") {
@@ -511,21 +617,9 @@ function LiveSummary({
           max: form.iti_max_ms,
         });
 
-  const avgIti = (form.iti_min_ms + form.iti_max_ms) / 2;
-  const totalMs = form.n_trials * (form.exposure_ms + avgIti);
-  const durationText = form.patient_self_test
-    ? t("tach.summary.duration.variable")
-    : formatDuration(totalMs, t);
-
   return (
     <div className="summary-card">
       <div className="summary-eyebrow">{t("tach.summary.live")}</div>
-      <div className="summary-duration">
-        <div className="summary-duration-label">
-          {t("tach.summary.duration")}
-        </div>
-        <div className="summary-duration-value">{durationText}</div>
-      </div>
       <dl className="summary-rows">
         <div>
           <dt>{t("tach.summary.mode")}</dt>
@@ -568,28 +662,6 @@ function LiveSummary({
   );
 }
 
-function formatDuration(
-  ms: number,
-  t: (key: string, params?: Record<string, string | number>) => string,
-): string {
-  const totalSec = Math.max(0, Math.round(ms / 1000));
-  if (totalSec < 60) {
-    return t("tach.summary.duration.value", {
-      value: t("tach.summary.duration.seconds", { n: totalSec }),
-    });
-  }
-  const min = Math.floor(totalSec / 60);
-  const sec = totalSec % 60;
-  if (sec === 0) {
-    return t("tach.summary.duration.value", {
-      value: t("tach.summary.duration.minutes", { n: min }),
-    });
-  }
-  return t("tach.summary.duration.value", {
-    value: t("tach.summary.duration.min_sec", { m: min, s: sec }),
-  });
-}
-
 function formatPositionShort(p: { x: number; y: number }): string {
   const h = p.x < 0.45 ? "sx" : p.x > 0.55 ? "dx" : "ctr";
   const v = p.y < 0.45 ? "sup" : p.y > 0.55 ? "inf" : "med";
@@ -624,6 +696,73 @@ function toCsv(trials: TachistoscopicTrial[]): string {
     ].join(","),
   );
   return [head.join(","), ...rows].join("\n");
+}
+
+function RepetitionReport({
+  repetitions,
+  blocks,
+}: {
+  repetitions: NonNullable<SessionSummary["repetitions"]>;
+  blocks: SessionSummary["blocks"];
+}) {
+  const t = useT();
+  const maxCount = Math.max(...repetitions.histogram.map((h) => h.count), 1);
+  const blockReps = blocks
+    .map((b) => b.rep_mean)
+    .filter((r): r is number => r !== undefined);
+  const maxBlockRep = Math.max(...blockReps, 0.001);
+
+  return (
+    <>
+      <div className="results-side-title">{t("tach.results.rep_title")}</div>
+      <ul className="bar-list">
+        {repetitions.histogram.map(({ reps, count }) => (
+          <li key={reps}>
+            <span className="bar-label">{reps}×</span>
+            <span className="bar-track">
+              <span
+                className="bar-fill"
+                style={{ width: `${(count / maxCount) * 100}%` }}
+              />
+            </span>
+            <span className="bar-count">{count}</span>
+          </li>
+        ))}
+      </ul>
+      {repetitions.asymmetry_lr !== undefined && (
+        <div className="rep-asymmetry">
+          <span>{t("tach.results.rep_asymmetry")}</span>
+          <b>
+            {repetitions.asymmetry_lr > 0 ? "+" : ""}
+            {repetitions.asymmetry_lr.toFixed(1)}×
+          </b>
+        </div>
+      )}
+      {blockReps.length > 1 && (
+        <>
+          <div className="results-side-title">{t("tach.results.rep_blocks")}</div>
+          <ul className="bar-list">
+            {blocks.map((b) =>
+              b.rep_mean === undefined ? null : (
+                <li key={b.block_idx}>
+                  <span className="bar-label">
+                    {t("tach.results.block_short", { n: b.block_idx + 1 })}
+                  </span>
+                  <span className="bar-track">
+                    <span
+                      className="bar-fill"
+                      style={{ width: `${(b.rep_mean / maxBlockRep) * 100}%` }}
+                    />
+                  </span>
+                  <span className="bar-count">{b.rep_mean.toFixed(1)}</span>
+                </li>
+              ),
+            )}
+          </ul>
+        </>
+      )}
+    </>
+  );
 }
 
 function Results({
@@ -711,6 +850,21 @@ function Results({
           <div className="kpi-value">{s.n_trials}</div>
           <div className="kpi-label">{t("tach.results.trials")}</div>
         </div>
+        {s.repetitions && (
+          <>
+            <div className="kpi">
+              <div className="kpi-value">{s.repetitions.mean.toFixed(1)}</div>
+              <div className="kpi-label">{t("tach.results.rep_mean")}</div>
+            </div>
+            <div className="kpi">
+              <div className="kpi-value">
+                {Math.round(s.repetitions.pct_first_exposure * 100)}
+                <span className="kpi-unit">%</span>
+              </div>
+              <div className="kpi-label">{t("tach.results.rep_first")}</div>
+            </div>
+          </>
+        )}
       </section>
 
       <div className="results-split">
@@ -763,21 +917,20 @@ function Results({
                 {t("tach.results.per_quadrant")}
               </div>
               <ul className="quadrant-list">
-                {Object.entries(s.per_quadrant).map(([q, stats]) => {
-                  const acc =
-                    stats.n_presented > 0
-                      ? Math.round((stats.n_detected / stats.n_presented) * 100)
-                      : null;
-                  return (
-                    <li key={q}>
-                      <span>{t(`quadrant.${q}`)}</span>
-                      <b>{acc !== null ? `${acc}%` : "—"}</b>
-                    </li>
-                  );
-                })}
+                {Object.entries(s.per_quadrant).map(([q, stats]) => (
+                  <li key={q}>
+                    <span>{t(`quadrant.${q}`)}</span>
+                    <b>
+                      {stats.rep_mean !== undefined
+                        ? `${stats.rep_mean.toFixed(1)}×`
+                        : "—"}
+                    </b>
+                  </li>
+                ))}
               </ul>
             </>
           )}
+          {s.repetitions && <RepetitionReport repetitions={s.repetitions} blocks={s.blocks} />}
         </aside>
       </div>
     </main>
