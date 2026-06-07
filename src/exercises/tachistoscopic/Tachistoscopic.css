@@ -908,3 +908,56 @@ details.form-section-collapsible[open] > summary::after {
   font-family: var(--mono);
   font-weight: 700;
 }
+
+/* Simplified clinician-guided results: a single focused column. */
+.clinician-report {
+  max-width: 680px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.difficulty-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.difficulty-block .form-hint {
+  margin: 0;
+}
+
+.difficulty-block .rep-asymmetry {
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--border);
+}
+
+.trial-detail > summary {
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-h);
+  padding: 0.4rem 0;
+}
+
+.trial-detail > summary::-webkit-details-marker {
+  display: none;
+}
+
+.trial-detail > summary::before {
+  content: "▸ ";
+  color: var(--text);
+}
+
+.trial-detail[open] > summary::before {
+  content: "▾ ";
+}
+
+.trial-detail > .trial-table {
+  margin-top: 0.75rem;
+}

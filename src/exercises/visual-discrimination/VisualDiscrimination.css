@@ -124,3 +124,60 @@ span.vd-glyph.color-swatch {
   color: var(--text-h);
   text-decoration: underline;
 }
+
+/* The voice-proposed answer, awaiting the clinician's confirmation. */
+.vd-option.is-proposed {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-border, rgba(124, 77, 255, 0.25));
+  background: var(--accent-bg, rgba(124, 77, 255, 0.06));
+}
+
+.vd-speech-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 0.9rem;
+  min-height: 1.4rem;
+  font-size: 0.92rem;
+}
+
+.vd-speech-status {
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.vd-speech-listening {
+  color: var(--accent);
+}
+
+.vd-speech-error,
+.vd-speech-unsupported {
+  color: #c4554d;
+}
+
+.vd-speech-transcript {
+  font-style: italic;
+  color: var(--text-h);
+}
+
+.vd-speech-matched {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.vd-confirm {
+  padding: 0.6rem 1.2rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.vd-confirm:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

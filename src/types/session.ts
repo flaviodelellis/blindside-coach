@@ -79,6 +79,10 @@ export type DiscriminationTrial = {
     rt_ms?: number;
     /** Patient's subjective awareness: did they report seeing anything? */
     aware?: boolean;
+    /** Raw speech transcript, when the answer was captured by voice. */
+    transcript?: string;
+    /** Matcher confidence [0,1] for the snapped answer, when voice-captured. */
+    asr_confidence?: number;
   };
   correct?: boolean;
 };
@@ -99,6 +103,10 @@ export type VisualDiscriminationExercise = {
     inter_trial_interval: Duration;
     n_trials: number;
     response_mode: "keypress" | "click" | "none";
+    /** How the answer is entered: manual selection or patient speech (clinician-confirmed). */
+    response_input?: "manual" | "speech";
+    /** BCP-47 language for speech recognition, e.g. "it-IT". */
+    speech_lang?: string;
     /** Who records the response. Blindsight protocol uses clinician-recorded answers. */
     response_collector: "clinician" | "patient";
     /** Awareness scale collected alongside the forced choice. */

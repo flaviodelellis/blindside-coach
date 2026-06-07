@@ -143,7 +143,10 @@ export function TachistoscopicRunner({
     }
   };
 
-  const next = () => recordAndAdvance();
+  // Clinician mode: "Prossima" means the patient recognized the word (possibly
+  // after some re-exposures); "Non riconosciuta" marks a word never read.
+  const next = () => recordAndAdvance({ detected: true });
+  const markNotRecognized = () => recordAndAdvance({ detected: false });
 
   const submitPatientCorrect = (typed: string) => {
     const rt_ms = performance.now() - flashEndRef.current;
@@ -207,6 +210,7 @@ export function TachistoscopicRunner({
             repetitions={nRepetitions}
             onRepeat={repeat}
             onNext={next}
+            onNotRecognized={markNotRecognized}
             onCancel={onCancel}
           />
         ) : (
@@ -295,6 +299,12 @@ function Instructions({
                 {t("tach.run.clinician.li2.sep")}
                 <kbd>Spazio</kbd>
                 {t("tach.run.clinician.li2.post")}
+              </li>
+              <li>
+                <b>{t("tach.run.clinician.li3.btn")}</b>
+                {t("tach.run.clinician.li3.mid")}
+                <kbd>X</kbd>
+                {t("tach.run.clinician.li3.post")}
               </li>
             </ul>
           </>
@@ -405,6 +415,7 @@ function ClinicianPanel({
   repetitions,
   onRepeat,
   onNext,
+  onNotRecognized,
   onCancel,
 }: {
   trialIdx: number;
@@ -412,6 +423,7 @@ function ClinicianPanel({
   repetitions: number;
   onRepeat: () => void;
   onNext: () => void;
+  onNotRecognized: () => void;
   onCancel: () => void;
 }) {
   const [revealed, setRevealed] = useState(false);
@@ -421,6 +433,9 @@ function ClinicianPanel({
       if (e.key === "r" || e.key === "R") {
         e.preventDefault();
         onRepeat();
+      } else if (e.key === "x" || e.key === "X") {
+        e.preventDefault();
+        onNotRecognized();
       } else if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
         onNext();
@@ -428,7 +443,7 @@ function ClinicianPanel({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onRepeat, onNext]);
+  }, [onRepeat, onNext, onNotRecognized]);
 
   useEffect(() => {
     let hideTimer: number | undefined;
@@ -457,6 +472,9 @@ function ClinicianPanel({
       <div className="tach-panel-actions">
         <button type="button" className="secondary" onClick={onRepeat}>
           {t("tach.panel.repeat")} <kbd>R</kbd>
+        </button>
+        <button type="button" className="secondary" onClick={onNotRecognized}>
+          {t("tach.panel.not_recognized")} <kbd>X</kbd>
         </button>
         <button type="button" onClick={onNext}>
           {t("tach.panel.next")} <kbd>↵</kbd>

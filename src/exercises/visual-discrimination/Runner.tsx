@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   DiscriminationTrial,
   PresentedStimulus,
@@ -9,6 +9,8 @@ import {
   type DiscriminationTrialParam,
 } from "./engine";
 import { colorLabel, shapeLabel, sideLabel } from "./labels";
+import { useSpeechResponse } from "../../lib/speech";
+import { buildVocab } from "./speechVocab";
 
 type Config = VisualDiscriminationExercise["config"];
 
@@ -83,7 +85,10 @@ export function VisualDiscriminationRunner({
   };
 
   // guess === null means the patient did not see the stimulus.
-  const submit = (guess: string | null) => {
+  const submit = (
+    guess: string | null,
+    extra?: { transcript?: string; asr_confidence?: number },
+  ) => {
     if (!cur) return;
     const rt_ms = performance.now() - flashEndRef.current;
     const seen = guess !== null;
@@ -99,6 +104,8 @@ export function VisualDiscriminationRunner({
         value: seen ? guess : undefined,
         rt_ms: Math.round(rt_ms),
         aware: seen,
+        transcript: extra?.transcript,
+        asr_confidence: extra?.asr_confidence,
       },
       correct: seen ? guess === cur.expected : false,
     };
@@ -142,6 +149,7 @@ export function VisualDiscriminationRunner({
         <ResponsePanel
           key={cur.trial_id}
           param={cur}
+          config={config}
           onSubmit={submit}
           onCancel={onCancel}
         />
@@ -258,14 +266,20 @@ function Instructions({
 
 function ResponsePanel({
   param,
+  config,
   onSubmit,
   onCancel,
 }: {
   param: DiscriminationTrialParam;
-  onSubmit: (guess: string | null) => void;
+  config: Config;
+  onSubmit: (
+    guess: string | null,
+    extra?: { transcript?: string; asr_confidence?: number },
+  ) => void;
   onCancel: () => void;
 }) {
   const dim = param.dimension;
+  const speech = config.response_input === "speech";
   const prompt =
     dim === "color"
       ? "Che colore ha indicato il paziente?"
@@ -273,15 +287,73 @@ function ResponsePanel({
         ? "Che forma ha indicato il paziente?"
         : "Da che lato ha indicato il paziente?";
 
+  const vocab = useMemo(
+    () => buildVocab(param.dimension, param.alternatives),
+    [param.dimension, param.alternatives],
+  );
+
+  const { status, transcript, match } = useSpeechResponse({
+    active: speech,
+    engine: "web-speech",
+    lang: config.speech_lang ?? "it-IT",
+    entries: vocab.entries,
+    notSeenPhrases: vocab.notSeen,
+    vocabulary: vocab.flat,
+  });
+
+  // The voice-proposed answer: a value, "not seen", or nothing yet.
+  const proposedValue = match.kind === "value" ? match.value : null;
+  const proposedNotSeen = match.kind === "not_seen";
+  const hasProposal = match.kind !== "none";
+
+  const confirmProposal = useCallback(() => {
+    if (match.kind === "value") {
+      onSubmit(match.value, {
+        transcript,
+        asr_confidence: match.score,
+      });
+    } else if (match.kind === "not_seen") {
+      onSubmit(null, { transcript, asr_confidence: match.score });
+    }
+  }, [match, transcript, onSubmit]);
+
+  // In speech mode, Enter confirms the proposed answer.
+  useEffect(() => {
+    if (!speech) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Enter" && hasProposal) {
+        e.preventDefault();
+        confirmProposal();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [speech, hasProposal, confirmProposal]);
+
   return (
     <div className="tach-panel-slide is-visible vd-response-panel">
       <div className="vd-response-prompt">{prompt}</div>
+
+      {speech && (
+        <SpeechStatusBar
+          status={status}
+          transcript={transcript}
+          matched={
+            match.kind === "value"
+              ? altLabel(dim, match.value)
+              : match.kind === "not_seen"
+                ? "Non ha visto"
+                : null
+          }
+        />
+      )}
+
       <div className="vd-response-options">
         {param.alternatives.map((alt) => (
           <button
             key={alt}
             type="button"
-            className="vd-option"
+            className={`vd-option${proposedValue === alt ? " is-proposed" : ""}`}
             onClick={() => onSubmit(alt)}
           >
             <AltGlyph dimension={dim} value={alt} />
@@ -290,7 +362,7 @@ function ResponsePanel({
         ))}
         <button
           type="button"
-          className="vd-option vd-not-seen"
+          className={`vd-option vd-not-seen${proposedNotSeen ? " is-proposed" : ""}`}
           onClick={() => onSubmit(null)}
         >
           <span className="vd-glyph vd-glyph-empty" aria-hidden>
@@ -299,9 +371,46 @@ function ResponsePanel({
           <span>Non ha visto</span>
         </button>
       </div>
+
+      {speech && (
+        <button
+          type="button"
+          className="vd-confirm"
+          onClick={confirmProposal}
+          disabled={!hasProposal}
+        >
+          Conferma «{proposedNotSeen ? "Non ha visto" : proposedValue ? altLabel(dim, proposedValue) : "—"}» (Invio)
+        </button>
+      )}
+
       <button type="button" className="vd-cancel" onClick={onCancel}>
         Interrompi (Esc)
       </button>
+    </div>
+  );
+}
+
+function SpeechStatusBar({
+  status,
+  transcript,
+  matched,
+}: {
+  status: string;
+  transcript: string;
+  matched: string | null;
+}) {
+  let hint: string;
+  if (status === "unsupported") hint = "Riconoscimento vocale non disponibile in questo browser.";
+  else if (status === "error") hint = "Errore microfono / riconoscimento.";
+  else if (status === "loading") hint = "Avvio microfono…";
+  else if (status === "listening") hint = "In ascolto…";
+  else hint = "";
+
+  return (
+    <div className="vd-speech-bar">
+      <span className={`vd-speech-status vd-speech-${status}`}>{hint}</span>
+      {transcript && <span className="vd-speech-transcript">«{transcript}»</span>}
+      {matched && <span className="vd-speech-matched">→ {matched}</span>}
     </div>
   );
 }

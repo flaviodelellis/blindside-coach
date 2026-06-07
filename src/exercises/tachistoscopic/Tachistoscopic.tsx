@@ -860,11 +860,20 @@ function Results({
   const { sessionFile } = outcome;
   const s = sessionFile.summary;
 
+  const isClinician =
+    sessionFile.exercise.type === "tachistoscopic" &&
+    sessionFile.exercise.config.response_mode === "clinician_marks";
+
   const heatmapPoints: HeatmapPoint[] = outcome.trials.map((tr) => ({
     position: tr.position_norm,
     correct: tr.response?.detected === true,
     rt_ms: tr.response?.rt_ms,
+    reps: tr.n_repetitions,
   }));
+  const fixationNorm =
+    sessionFile.exercise.type === "tachistoscopic"
+      ? sessionFile.exercise.config.fixation.position_norm
+      : { x: 0.5, y: 0.5 };
   const screenAspect =
     sessionFile.session.screen.height_px > 0
       ? sessionFile.session.screen.width_px / sessionFile.session.screen.height_px
@@ -886,6 +895,22 @@ function Results({
     downloadBlob(JSON.stringify(sessionFile, null, 2), "application/json", "json");
   const downloadCsv = () =>
     downloadBlob(toCsv(outcome.trials), "text/csv", "csv");
+
+  if (isClinician) {
+    return (
+      <ClinicianResults
+        outcome={outcome}
+        summary={s}
+        heatmapPoints={heatmapPoints}
+        fixationNorm={fixationNorm}
+        screenAspect={screenAspect}
+        onRestart={onRestart}
+        onBack={onBack}
+        onDownloadJson={downloadJson}
+        onDownloadCsv={downloadCsv}
+      />
+    );
+  }
 
   return (
     <main className="page page-results">
@@ -1014,6 +1039,160 @@ function Results({
           )}
           {s.repetitions && <RepetitionReport repetitions={s.repetitions} blocks={s.blocks} />}
         </aside>
+      </div>
+    </main>
+  );
+}
+
+/** Compact "Xm Ys" / "Ys" duration label. */
+function formatDurationShort(ms: number): string {
+  const totalSec = Math.max(0, Math.round(ms / 1000));
+  if (totalSec < 60) return `${totalSec}s`;
+  const m = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${m}m ${sec}s`;
+}
+
+/**
+ * Simplified results for clinician-guided tachistoscopy. The clinical signal
+ * lives almost entirely in the re-exposures ("Ripeti") needed per word and in
+ * where, across the visual field, those re-exposures concentrate.
+ */
+function ClinicianResults({
+  outcome,
+  summary,
+  heatmapPoints,
+  fixationNorm,
+  screenAspect,
+  onRestart,
+  onBack,
+  onDownloadJson,
+  onDownloadCsv,
+}: {
+  outcome: RunOutcome;
+  summary: SessionSummary;
+  heatmapPoints: HeatmapPoint[];
+  fixationNorm: { x: number; y: number };
+  screenAspect: number;
+  onRestart: () => void;
+  onBack: () => void;
+  onDownloadJson: () => void;
+  onDownloadCsv: () => void;
+}) {
+  const t = useT();
+  const rep = summary.repetitions;
+  const n = summary.n_trials;
+  const nNotRecognized = outcome.trials.filter(
+    (tr) => tr.response?.detected === false,
+  ).length;
+
+  return (
+    <main className="page page-results">
+      <BackButton onClick={onBack} className="fixed" />
+      <LanguageToggle className="fixed" />
+      <div className="clinician-report">
+        <header className="results-header">
+          <div>
+            <h1>{t("tach.results.title")}</h1>
+            <p className="subtitle">
+              {t("tach.results.subtitle_words", {
+                dur: formatDurationShort(outcome.durationMs),
+                n,
+              })}
+            </p>
+          </div>
+          <div className="results-header-actions">
+            <button type="button" className="secondary" onClick={onDownloadJson}>
+              ↓ JSON
+            </button>
+            <button type="button" className="secondary" onClick={onDownloadCsv}>
+              ↓ CSV
+            </button>
+            <button type="button" onClick={onRestart}>
+              + {t("tach.results.restart")}
+            </button>
+          </div>
+        </header>
+
+        <section className="kpi-strip">
+          <div className="kpi">
+            <div className="kpi-value">
+              {rep ? `${rep.mean.toFixed(1)}` : "—"}
+              <span className="kpi-unit">×</span>
+            </div>
+            <div className="kpi-label">{t("tach.results.rep_mean")}</div>
+          </div>
+          <div className="kpi">
+            <div className="kpi-value">
+              {rep ? Math.round(rep.pct_first_exposure * 100) : "—"}
+              <span className="kpi-unit">%</span>
+            </div>
+            <div className="kpi-label">{t("tach.results.first_hit")}</div>
+          </div>
+          <div className="kpi">
+            <div className="kpi-value">
+              {n > 0 ? Math.round((nNotRecognized / n) * 100) : "—"}
+              <span className="kpi-unit">%</span>
+            </div>
+            <div className="kpi-label">{t("tach.results.not_recognized")}</div>
+          </div>
+        </section>
+
+        <section className="difficulty-block">
+          <div className="results-side-title">
+            {t("tach.results.difficulty_map")}
+          </div>
+          {heatmapPoints.length > 0 && (
+            <HeatmapReport
+              points={heatmapPoints}
+              aspectRatio={screenAspect}
+              fixation={fixationNorm}
+              metric="reps"
+              compact
+            />
+          )}
+          <p className="form-hint">{t("tach.results.difficulty_hint")}</p>
+          {rep?.asymmetry_lr !== undefined && (
+            <div className="rep-asymmetry">
+              <span>{t("tach.results.rep_asymmetry")}</span>
+              <b>
+                {rep.asymmetry_lr > 0 ? "+" : ""}
+                {rep.asymmetry_lr.toFixed(1)}×
+              </b>
+            </div>
+          )}
+        </section>
+
+        <details className="trial-detail">
+          <summary>{t("tach.results.detail")}</summary>
+          <section className="trial-table">
+            <div className="trial-table-head">
+              <span>{t("tach.results.col.trial_n")}</span>
+              <span>{t("tach.results.col.position")}</span>
+              <span>{t("tach.results.col.word")}</span>
+              <span>{t("tach.results.col.reps")}</span>
+              <span>{t("tach.results.col.outcome")}</span>
+            </div>
+            <div className="trial-table-body">
+              {outcome.trials.map((tr) => {
+                const ok = tr.response?.detected === true;
+                return (
+                  <div key={tr.trial_id} className="trial-table-row">
+                    <span className="trial-cell-mono">{tr.trial_id}</span>
+                    <span>{formatPositionShort(tr.position_norm)}</span>
+                    <span className="trial-cell-stim">{tr.word}</span>
+                    <span className="trial-cell-mono">{tr.n_repetitions}×</span>
+                    <span className={ok ? "trial-cell-ok" : "trial-cell-err"}>
+                      {ok
+                        ? t("tach.results.outcome.ok")
+                        : t("tach.results.outcome.no")}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        </details>
       </div>
     </main>
   );
