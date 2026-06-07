@@ -19,9 +19,3 @@ export function colorLabel(hex: string): string {
 export function shapeLabel(shape: string): string {
   return SHAPE_NAMES[shape] ?? shape;
 }
-
-export function sideLabel(side: string): string {
-  if (side === "left") return "Sinistra";
-  if (side === "right") return "Destra";
-  return side;
-}

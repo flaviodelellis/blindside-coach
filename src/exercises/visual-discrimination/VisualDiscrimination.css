@@ -126,10 +126,28 @@ span.vd-glyph.color-swatch {
 }
 
 /* The voice-proposed answer, awaiting the clinician's confirmation. */
-.vd-option.is-proposed {
+.vd-option.is-proposed,
+/* The clinician's current pick in the combined shape+colour task. */
+.vd-option.is-selected {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-border, rgba(124, 77, 255, 0.25));
   background: var(--accent-bg, rgba(124, 77, 255, 0.06));
+}
+
+/* Combined shape+colour: a labelled group per attribute. */
+.vd-combined-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.vd-combined-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text);
 }
 
 .vd-speech-bar {
@@ -180,4 +198,270 @@ span.vd-glyph.color-swatch {
 .vd-confirm:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* Clinician: build a patient prescription link. */
+.rx-builder {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+}
+
+.rx-builder > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-h);
+}
+
+.rx-builder .form-row {
+  margin-top: 0.6rem;
+}
+
+.rx-copy {
+  margin-top: 0.6rem;
+  width: 100%;
+  padding: 0.6rem 1rem;
+  font-weight: 600;
+  border: 1.5px solid var(--accent);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.rx-copy:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Autonomous patient voice panel — large, high-contrast over the dark host. */
+.patient-response {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.2rem;
+  text-align: center;
+  color: #fff;
+}
+
+.patient-prompt {
+  font-size: 1.9rem;
+  font-weight: 700;
+}
+
+.patient-mic {
+  font-size: 1.3rem;
+  opacity: 0.85;
+}
+
+.patient-mic-listening {
+  color: #7fd1ff;
+}
+
+.patient-mic-unsupported,
+.patient-mic-error {
+  color: #ff8a80;
+}
+
+.patient-heard {
+  font-size: 1.4rem;
+  opacity: 0.9;
+}
+
+.patient-feedback {
+  font-size: 2.6rem;
+  font-weight: 800;
+  padding: 0.4rem 1.4rem;
+  border-radius: 14px;
+}
+
+.patient-feedback-correct {
+  color: #1b5e20;
+  background: #b9f6ca;
+}
+
+.patient-feedback-wrong {
+  color: #7f1d1d;
+  background: #ffcdd2;
+}
+
+.patient-attempt {
+  font-size: 1.1rem;
+  opacity: 0.7;
+}
+
+/* Minimal clinician response bar: discreet, anchored to the bottom, leaves the
+   fixation cross visible so the screen stays calm for the patient. */
+.runbar-wrap {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem 1rem;
+  pointer-events: none;
+}
+
+.runbar-wrap > * {
+  pointer-events: auto;
+}
+
+.runbar {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  max-width: 92vw;
+  padding: 0.5rem 0.9rem;
+  border-radius: 999px;
+  background: rgba(20, 22, 28, 0.82);
+  color: #fff;
+  font-size: 0.95rem;
+  backdrop-filter: blur(4px);
+}
+
+.runbar-mic {
+  opacity: 0.45;
+}
+
+.runbar-mic-listening {
+  opacity: 1;
+}
+
+.runbar-answer {
+  font-weight: 600;
+  max-width: 40vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runbar-state {
+  font-size: 0.82rem;
+  opacity: 0.6;
+}
+
+.runbar-fix {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: transparent;
+  color: #fff;
+  font-size: 0.85rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.runbar-fix:hover {
+  border-color: #fff;
+}
+
+.runbar-link {
+  border: none;
+  background: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.82rem;
+  cursor: pointer;
+  padding: 0.2rem 0.3rem;
+}
+
+.runbar-link:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+/* Compact correction popover (only when «correggi» is open). */
+.vd-correct {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 14px;
+  background: rgba(20, 22, 28, 0.92);
+  color: #fff;
+}
+
+.vd-correct-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.vd-correct-label {
+  width: 4.2rem;
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.vd-chip {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.vd-chip.is-proposed {
+  border-color: var(--accent);
+}
+
+.vd-chip.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.vd-chip .vd-glyph {
+  width: 28px;
+  height: 28px;
+}
+
+.vd-correct-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 0.2rem;
+}
+
+.vd-correct-save {
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  padding: 0.35rem 0.9rem;
+  cursor: pointer;
+}
+
+.vd-correct-save:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Re-expose the same stimulus (clinician re-show). */
+.vd-repeat {
+  padding: 0.5rem 1.1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.vd-repeat:hover {
+  border-color: var(--accent);
+}
+
+.vd-repeat kbd {
+  font-size: 0.78em;
+  opacity: 0.7;
 }

@@ -16,16 +16,25 @@ export type DiscriminationTrialParam = {
   trial_id: number;
   stimulus: PresentedStimulus;
   dimension: DiscriminationDimension;
-  /** The correct forced-choice answer (colour hex, shape name, or "left"/"right"). */
+  /** The correct forced-choice answer (colour hex or shape name); single-dim only. */
   expected: string;
-  /** The alternatives presented to the clinician, in display order. */
+  /** The alternatives presented to the clinician, in display order; single-dim only. */
   alternatives: string[];
+  /** Combined shape+color task: correct values and per-attribute alternatives. */
+  expected_shape?: string;
+  expected_color?: string;
+  shape_alternatives?: string[];
+  color_alternatives?: string[];
   exposure_ms: number;
   iti_ms: number;
 };
 
 /** Probability of a correct forced-choice guess by pure chance for a dimension. */
 export function chanceLevel(config: Config): number {
+  if (config.discrimination_dimension === "shape_color") {
+    const n = SHAPES.length * config.stimulus_colors.length;
+    return n > 0 ? 1 / n : 0;
+  }
   const n = alternativesFor(config).length;
   return n > 0 ? 1 / n : 0;
 }
@@ -36,9 +45,8 @@ export function alternativesFor(config: Config): string[] {
     case "color":
       return config.stimulus_colors;
     case "shape":
+    case "shape_color":
       return [...SHAPES];
-    case "position":
-      return ["left", "right"];
   }
 }
 
@@ -53,7 +61,9 @@ export function buildDiscriminationTrials(config: Config): DiscriminationTrialPa
     const iti_ms = Math.round(resolveDuration(config.inter_trial_interval, rng));
 
     let stimulus: PresentedStimulus;
-    let expected: string;
+    let expected = "";
+    let expected_shape: string | undefined;
+    let expected_color: string | undefined;
 
     if (dimension === "color") {
       const color =
@@ -77,17 +87,19 @@ export function buildDiscriminationTrials(config: Config): DiscriminationTrialPa
       };
       expected = shape;
     } else {
-      // position: ignore configured side — the task IS left vs right.
-      const side = rng() < 0.5 ? "left" : "right";
-      const y = 0.5 + (rng() - 0.5) * 0.2;
+      // shape_color: one coloured shape; the patient reports BOTH attributes.
+      const shape = SHAPES[Math.floor(rng() * SHAPES.length)];
+      const color =
+        config.stimulus_colors[Math.floor(rng() * config.stimulus_colors.length)];
       stimulus = {
-        kind: "color",
-        value: NEUTRAL_FILL,
-        color: NEUTRAL_FILL,
-        position_norm: { x: side === "left" ? 0.25 : 0.75, y },
+        kind: "shape",
+        value: shape,
+        color,
+        position_norm: resolvePosition(config.position_mode, rng, i),
         size_px: config.stimulus_size_px,
       };
-      expected = side;
+      expected_shape = shape;
+      expected_color = color;
     }
 
     return {
@@ -96,6 +108,11 @@ export function buildDiscriminationTrials(config: Config): DiscriminationTrialPa
       dimension,
       expected,
       alternatives,
+      expected_shape,
+      expected_color,
+      shape_alternatives: dimension === "shape_color" ? [...SHAPES] : undefined,
+      color_alternatives:
+        dimension === "shape_color" ? config.stimulus_colors : undefined,
       exposure_ms,
       iti_ms,
     };

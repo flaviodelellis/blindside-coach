@@ -60,7 +60,7 @@ export type PresentedStimulus = {
   size_px: number;
 };
 
-export type DiscriminationDimension = "color" | "shape" | "position";
+export type DiscriminationDimension = "color" | "shape" | "shape_color";
 
 export type DiscriminationTrial = {
   trial_id: number;
@@ -69,13 +69,19 @@ export type DiscriminationTrial = {
   stimuli: PresentedStimulus[];
   /** The forced-choice dimension under test for this trial. */
   dimension: DiscriminationDimension;
-  /** The correct alternative the patient should pick (color hex, shape name, or "left"/"right"). */
+  /** The correct alternative the patient should pick (color hex or shape name). */
   expected_response?: string;
+  /** Combined shape+color task: the correct shape / colour for this trial. */
+  expected_shape?: string;
+  expected_color?: string;
   response: {
     /** Forced choice: a guess is always recorded. Kept for schema compatibility. */
     given: boolean;
     /** The patient's forced-choice guess. */
     value?: string;
+    /** Combined task: the patient's shape / colour guesses. */
+    value_shape?: string;
+    value_color?: string;
     rt_ms?: number;
     /** Patient's subjective awareness: did they report seeing anything? */
     aware?: boolean;
@@ -84,6 +90,8 @@ export type DiscriminationTrial = {
     /** Matcher confidence [0,1] for the snapped answer, when voice-captured. */
     asr_confidence?: number;
   };
+  /** Re-exposures the clinician requested before the answer was recorded. */
+  n_repetitions?: number;
   correct?: boolean;
 };
 
@@ -115,6 +123,13 @@ export type VisualDiscriminationExercise = {
     fixation_check?: FixationCheckConfig;
     feedback: FeedbackConfig;
     random_seed?: number;
+    /**
+     * Autonomous patient mode: max times a stimulus is presented per trial. A
+     * wrong voice answer re-exposes the stimulus until this many attempts are
+     * used, then the trial is recorded as failed. Only used when
+     * `response_collector === "patient"`.
+     */
+    max_attempts?: number;
   };
   trials: DiscriminationTrial[];
 };

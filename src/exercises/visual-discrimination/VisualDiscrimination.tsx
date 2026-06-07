@@ -1,31 +1,35 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type {
   DiscriminationDimension,
   PositionMode,
   SessionFile,
   VisualDiscriminationExercise,
 } from "../../types/session";
-import { VisualDiscriminationRunner, type EngineResult } from "./Runner";
+import type { EngineResult } from "./Runner";
 import { computeDiscriminationSummary } from "../../lib/summary";
 import { DEFAULT_COLORS, SHAPES } from "./stimuli";
 import { HeatmapReport, type HeatmapPoint } from "../../components/HeatmapReport";
-import { ColorField } from "../../components/ColorField";
 import { NumberField } from "../../components/NumberField";
 import { ConfigManager } from "../../components/ConfigManager";
+import { buildPrescriptionLink } from "../../lib/prescription";
 import { BackButton } from "../../components/BackButton";
-import { LanguageToggle, useT } from "../../i18n";
+import { useT } from "../../i18n";
 import type { PreviewPoint } from "../../components/AppearancePreview";
 import {
-  PositionGridSelector,
   makeEmptyGrid,
   gridToPositionMode,
   type GridState,
 } from "../../components/PositionGridSelector";
+import {
+  PositionSection,
+  AppearanceSection,
+  TimingSection,
+  AdvancedSection,
+} from "../shared/config/sections";
 import "../tachistoscopic/Tachistoscopic.css";
 import "./VisualDiscrimination.css";
 
 type Config = VisualDiscriminationExercise["config"];
-type Mode = "configure" | "running" | "results";
 
 type PositionChoice =
   | "central"
@@ -52,19 +56,20 @@ type FormState = {
 
 export type VDFormState = FormState;
 
-const DEFAULT_FORM: FormState = {
+export const VD_DEFAULT_FORM: FormState = {
   n_trials: 5,
   exposure_ms: 250,
   iti_min_ms: 1000,
   iti_max_ms: 1500,
-  dimension: "color",
+  dimension: "shape_color",
   stimulus_size_px: 80,
   colors: { red: true, green: true, blue: true, yellow: true },
   background_color: "#000000",
   fixation_color: "#ffffff",
   position: "peripheral_both",
   position_grid: makeEmptyGrid(5, 5),
-  response_input: "manual",
+  // Discriminazione is always voice + clinician confirmation (manual fallback).
+  response_input: "speech",
   random_seed: "",
 };
 
@@ -98,11 +103,11 @@ function selectedColorCount(form: FormState): number {
 
 /** Returns an i18n error key if the form is not ready, otherwise null. */
 function validateForm(form: FormState): string | null {
-  if (form.dimension === "color" && selectedColorCount(form) < 2) {
+  // Combined and colour tasks need at least two colours to be a real choice.
+  if (form.dimension !== "shape" && selectedColorCount(form) < 2) {
     return "vd.validate.colors";
   }
   if (
-    form.dimension !== "position" &&
     form.position === "custom_grid" &&
     gridToPositionMode(form.position_grid) === null
   ) {
@@ -111,7 +116,7 @@ function validateForm(form: FormState): string | null {
   return null;
 }
 
-function configFromForm(form: FormState): Config {
+export function configFromForm(form: FormState): Config {
   const colors = (Object.keys(form.colors) as Array<keyof FormState["colors"]>)
     .filter((c) => form.colors[c])
     .map((c) => COLOR_HEX[c]);
@@ -121,7 +126,9 @@ function configFromForm(form: FormState): Config {
   const kinds =
     form.dimension === "shape"
       ? (["shape"] as const)
-      : (["color"] as const);
+      : form.dimension === "shape_color"
+        ? (["shape", "color"] as const)
+        : (["color"] as const);
 
   return {
     discrimination_dimension: form.dimension,
@@ -154,189 +161,84 @@ function configFromForm(form: FormState): Config {
   };
 }
 
-type RunOutcome = {
+export type RunOutcome = {
   durationMs: number;
   sessionFile: SessionFile;
 };
 
-export function VisualDiscrimination({
-  onBack,
-  initialForm,
-}: {
-  onBack: () => void;
-  initialForm?: FormState;
-}) {
-  const [mode, setMode] = useState<Mode>("configure");
-  const [form, setForm] = useState<FormState>(
-    initialForm ? { ...DEFAULT_FORM, ...initialForm } : DEFAULT_FORM,
-  );
-  const [runConfig, setRunConfig] = useState<Config | null>(null);
-  const [outcome, setOutcome] = useState<RunOutcome | null>(null);
-  const [validationError, setValidationError] = useState<string | null>(null);
+/** Run the form through validation; returns an i18n error key or null. */
+export { validateForm as vdValidateForm };
 
-  const handleComplete = (config: Config, engineResult: EngineResult) => {
-    const summary = computeDiscriminationSummary(
-      engineResult.trials,
-      engineResult.duration_ms,
+/** Assemble the downloadable session file from a completed run. */
+export function buildVDSessionFile(
+  config: Config,
+  engineResult: EngineResult,
+): RunOutcome {
+  const summary = computeDiscriminationSummary(
+    engineResult.trials,
+    engineResult.duration_ms,
+    config,
+  );
+  const sessionFile: SessionFile = {
+    schema_version: "1.0",
+    session: {
+      id: crypto.randomUUID(),
+      patient_id: "P-DEMO",
+      started_at: engineResult.started_at,
+      ended_at: engineResult.ended_at,
+      duration_ms: engineResult.duration_ms,
+      app_version: "0.1.0",
+      context: "hospital",
+      screen: {
+        width_px: window.innerWidth,
+        height_px: window.innerHeight,
+        device_pixel_ratio: window.devicePixelRatio,
+      },
+    },
+    exercise: {
+      type: "visual_discrimination",
       config,
-    );
-    const sessionFile: SessionFile = {
-      schema_version: "1.0",
-      session: {
-        id: crypto.randomUUID(),
-        patient_id: "P-DEMO",
-        started_at: engineResult.started_at,
-        ended_at: engineResult.ended_at,
-        duration_ms: engineResult.duration_ms,
-        app_version: "0.1.0",
-        context: "hospital",
-        screen: {
-          width_px: window.innerWidth,
-          height_px: window.innerHeight,
-          device_pixel_ratio: window.devicePixelRatio,
-        },
-      },
-      exercise: {
-        type: "visual_discrimination",
-        config,
-        trials: engineResult.trials,
-      },
-      events: [],
-      summary,
-    };
-    setOutcome({ durationMs: engineResult.duration_ms, sessionFile });
-    setMode("results");
+      trials: engineResult.trials,
+    },
+    events: [],
+    summary,
   };
-
-  if (mode === "running" && runConfig) {
-    return (
-      <VisualDiscriminationRunner
-        config={runConfig}
-        onComplete={(r) => handleComplete(runConfig, r)}
-        onCancel={() => setMode("configure")}
-      />
-    );
-  }
-
-  if (mode === "results" && outcome) {
-    return (
-      <Results
-        outcome={outcome}
-        onRestart={() => {
-          setOutcome(null);
-          setMode("configure");
-        }}
-        onBack={onBack}
-      />
-    );
-  }
-
-  return (
-    <ConfigureForm
-      form={form}
-      validationError={validationError}
-      onChange={(next) => {
-        setForm(next);
-        setValidationError(null);
-      }}
-      onStart={() => {
-        const error = validateForm(form);
-        if (error) {
-          setValidationError(error);
-          return;
-        }
-        setRunConfig(configFromForm(form));
-        setMode("running");
-      }}
-      onBack={onBack}
-    />
-  );
+  return { durationMs: engineResult.duration_ms, sessionFile };
 }
 
-function ConfigureForm({
+/**
+ * Discrimination-specific config-form body (everything below the Stimolo×Compito
+ * selector): response input, stimuli, position, appearance, timing, advanced.
+ * The dimension (forma/colore/posizione) is driven by the unified selector's
+ * Stimolo, so the old "Compito" section is gone — `form.dimension` is set by the
+ * parent.
+ */
+export function VDConfigBody({
   form,
-  validationError,
   onChange,
-  onStart,
-  onBack,
+  typeSelector,
+  validationError,
 }: {
   form: FormState;
-  validationError: string | null;
   onChange: (next: FormState) => void;
-  onStart: () => void;
-  onBack: () => void;
+  typeSelector: ReactNode;
+  validationError: string | null;
 }) {
   const t = useT();
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     onChange({ ...form, [key]: value });
 
   return (
-    <>
-      <header className="config-topbar">
-        <div className="config-topbar-left">
-          <button
-            type="button"
-            className="config-back"
-            onClick={onBack}
-            aria-label={t("common.home")}
-          >
-            {t("common.home")}
-          </button>
-        </div>
-        <LanguageToggle />
-      </header>
-      <main className="page page-config">
-        <div className="form-layout">
-          <div className="form-main">
-            <section className="form">
-              <section className="form-section">
-                <h2 className="form-section-title">{t("vd.section.task")}</h2>
-                <div className="form-row">
-                  <label htmlFor="dimension">{t("vd.field.dimension")}</label>
-                  <select
-                    id="dimension"
-                    value={form.dimension}
-                    onChange={(e) =>
-                      update("dimension", e.target.value as DiscriminationDimension)
-                    }
-                  >
-                    <option value="color">{t("vd.dim.color")}</option>
-                    <option value="shape">{t("vd.dim.shape")}</option>
-                    <option value="position">{t("vd.dim.position")}</option>
-                  </select>
-                </div>
-              </section>
+    <div className="form-main">
+      <section className="form">
+        {typeSelector}
+        {form.response_input === "speech" && (
+          <p className="form-hint">
+            {t("vd.hint.speech", { what: t(`vd.what.${form.dimension}`) })}
+          </p>
+        )}
 
-              <section className="form-section">
-                <h2 className="form-section-title">{t("vd.section.response")}</h2>
-                <div className="form-row">
-                  <label htmlFor="response_input">
-                    {t("vd.field.response_input")}
-                  </label>
-                  <select
-                    id="response_input"
-                    value={form.response_input}
-                    onChange={(e) =>
-                      update(
-                        "response_input",
-                        e.target.value as FormState["response_input"],
-                      )
-                    }
-                  >
-                    <option value="manual">{t("vd.response.manual")}</option>
-                    <option value="speech">{t("vd.response.speech")}</option>
-                  </select>
-                </div>
-                {form.response_input === "speech" && (
-                  <p className="form-hint">
-                    {t("vd.hint.speech", {
-                      what: t(`vd.what.${form.dimension}`),
-                    })}
-                  </p>
-                )}
-              </section>
-
-              <section className="form-section">
+        <section className="form-section">
                 <h2 className="form-section-title">{t("vd.section.stimuli")}</h2>
                 <div className="form-row">
                   <label htmlFor="stim_size">{t("vd.field.stim_size")}</label>
@@ -350,7 +252,7 @@ function ConfigureForm({
                   />
                 </div>
 
-                {form.dimension === "color" && (
+                {form.dimension !== "shape" && (
                   <div className="form-row full">
                     <label>{t("vd.field.colors")}</label>
                     <div className="multi-check">
@@ -383,160 +285,48 @@ function ConfigureForm({
                 )}
               </section>
 
-              {form.dimension !== "position" && (
-                <section className="form-section">
-                  <h2 className="form-section-title">
-                    {t("vd.section.position")}
-                  </h2>
-                  <div className="form-row">
-                    <label htmlFor="position">{t("vd.field.position")}</label>
-                    <select
-                      id="position"
-                      value={form.position}
-                      onChange={(e) =>
-                        update("position", e.target.value as PositionChoice)
-                      }
-                    >
-                      <option value="peripheral_both">
-                        {t("vd.pos.peripheral_both")}
-                      </option>
-                      <option value="peripheral_left">
-                        {t("vd.pos.peripheral_left")}
-                      </option>
-                      <option value="peripheral_right">
-                        {t("vd.pos.peripheral_right")}
-                      </option>
-                      <option value="central">{t("vd.pos.central")}</option>
-                      <option value="custom_grid">
-                        {t("vd.pos.custom_grid")}
-                      </option>
-                    </select>
-                  </div>
+              <PositionSection
+                value={form.position}
+                grid={form.position_grid}
+                includeCentral
+                onValueChange={(v) => update("position", v)}
+                onGridChange={(g) => update("position_grid", g)}
+              />
 
-                  {form.position === "custom_grid" && (
-                    <div className="form-row full">
-                      <label>{t("vd.field.allowed_regions")}</label>
-                      <PositionGridSelector
-                        grid={form.position_grid}
-                        onChange={(g) => update("position_grid", g)}
-                        fixationNorm={{ x: 0.5, y: 0.5 }}
-                      />
-                    </div>
-                  )}
-                </section>
-              )}
+              <AppearanceSection
+                backgroundColor={form.background_color}
+                fixationColor={form.fixation_color}
+                onBackgroundChange={(c) => update("background_color", c)}
+                onFixationChange={(c) => update("fixation_color", c)}
+              />
 
-              <section className="form-section">
-                <h2 className="form-section-title">
-                  {t("vd.section.appearance")}
-                </h2>
-                <ColorField
-                  id="vd_background_color"
-                  label={t("vd.field.background_color")}
-                  value={form.background_color}
-                  onChange={(c) => update("background_color", c)}
-                />
-                <ColorField
-                  id="vd_fixation_color"
-                  label={t("vd.field.fixation_color")}
-                  value={form.fixation_color}
-                  onChange={(c) => update("fixation_color", c)}
-                />
-              </section>
+              <TimingSection
+                nTrials={form.n_trials}
+                exposureMs={form.exposure_ms}
+                itiMinMs={form.iti_min_ms}
+                itiMaxMs={form.iti_max_ms}
+                itiBounds={{ min: 200, max: 5000, step: 50 }}
+                onNTrialsChange={(n) => update("n_trials", n)}
+                onExposureChange={(n) => update("exposure_ms", n)}
+                onItiMinChange={(n) => update("iti_min_ms", n)}
+                onItiMaxChange={(n) => update("iti_max_ms", n)}
+              />
 
-              <section className="form-section">
-                <h2 className="form-section-title">{t("vd.section.timing")}</h2>
-                <div className="form-row">
-                  <label htmlFor="n_trials">{t("vd.field.n_trials")}</label>
-                  <NumberField
-                    id="n_trials"
-                    min={1}
-                    max={500}
-                    value={form.n_trials}
-                    onChange={(n) => update("n_trials", n)}
-                  />
-                </div>
-                <div className="form-row">
-                  <label htmlFor="exposure_ms">{t("vd.field.exposure")}</label>
-                  <NumberField
-                    id="exposure_ms"
-                    min={50}
-                    max={2000}
-                    step={50}
-                    value={form.exposure_ms}
-                    onChange={(n) => update("exposure_ms", n)}
-                  />
-                </div>
-                <div className="form-row full">
-                  <label>{t("vd.field.iti")}</label>
-                  <div className="dual-input">
-                    <NumberField
-                      min={200}
-                      max={5000}
-                      step={50}
-                      value={form.iti_min_ms}
-                      onChange={(n) => update("iti_min_ms", n)}
-                      aria-label="min"
-                    />
-                    <span>–</span>
-                    <NumberField
-                      min={200}
-                      max={5000}
-                      step={50}
-                      value={form.iti_max_ms}
-                      onChange={(n) => update("iti_max_ms", n)}
-                      aria-label="max"
-                    />
-                  </div>
-                </div>
-              </section>
-
-              <details className="form-section form-section-collapsible">
-                <summary className="form-section-title">
-                  {t("vd.section.advanced")}
-                </summary>
-                <div className="form-row full">
-                  <label htmlFor="random_seed">
-                    {t("vd.field.random_seed")}
-                  </label>
-                  <input
-                    id="random_seed"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder={t("vd.placeholder.random_seed")}
-                    value={form.random_seed}
-                    onChange={(e) => update("random_seed", e.target.value)}
-                  />
-                </div>
-              </details>
+              <AdvancedSection
+                randomSeed={form.random_seed}
+                onRandomSeedChange={(v) => update("random_seed", v)}
+              />
             </section>
 
             {validationError && (
               <div className="validation-error">{t(validationError)}</div>
             )}
-          </div>
-
-          <aside className="form-summary">
-            <VDLiveSummary
-              form={form}
-              onStart={onStart}
-              onLoad={(f) => onChange({ ...DEFAULT_FORM, ...f })}
-            />
-          </aside>
-        </div>
-      </main>
-    </>
+    </div>
   );
 }
 
 /** Representative stimulus positions (normalized) for the preview. */
 function previewPoints(form: FormState): PreviewPoint[] {
-  if (form.dimension === "position") {
-    return [
-      { x: 0.25, y: 0.5 },
-      { x: 0.75, y: 0.5 },
-    ];
-  }
   switch (form.position) {
     case "central":
       return [{ x: 0.5, y: 0.5 }];
@@ -564,7 +354,7 @@ function previewPoints(form: FormState): PreviewPoint[] {
   }
 }
 
-function VDLiveSummary({
+export function VDLiveSummary({
   form,
   onStart,
   onLoad,
@@ -584,7 +374,10 @@ function VDLiveSummary({
         ? `${t("vd.dim.shape")} · ${t("vd.summary.stimuli.shape", {
             n: SHAPES.length,
           })}`
-        : t("vd.summary.stimuli.position");
+        : t("vd.summary.stimuli.shape_color", {
+            shapes: SHAPES.length,
+            colors: selectedColorCount(form),
+          });
 
   let positionText: string;
   if (form.position === "custom_grid") {
@@ -623,12 +416,10 @@ function VDLiveSummary({
           <dt>{t("vd.summary.stimuli")}</dt>
           <dd>{stimuliText}</dd>
         </div>
-        {form.dimension !== "position" && (
-          <div>
-            <dt>{t("vd.summary.position")}</dt>
-            <dd>{positionText}</dd>
-          </div>
-        )}
+        <div>
+          <dt>{t("vd.summary.position")}</dt>
+          <dd>{positionText}</dd>
+        </div>
         <div>
           <dt>{t("vd.summary.timing")}</dt>
           <dd>
@@ -650,7 +441,68 @@ function VDLiveSummary({
         current={form}
         onLoad={onLoad}
       />
+      <PrescriptionLinkBuilder form={form} />
     </div>
+  );
+}
+
+/** Clinician control: turn the current config into a patient prescription link. */
+function PrescriptionLinkBuilder({ form }: { form: FormState }) {
+  const t = useT();
+  const [attempts, setAttempts] = useState(3);
+  const [label, setLabel] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    const link = buildPrescriptionLink({
+      schema_version: "1.0",
+      kind: "blindside-config",
+      exercise_type: "visual_discrimination",
+      name: "Prescrizione",
+      created_at: new Date().toISOString(),
+      form,
+      prescription: {
+        max_attempts: attempts,
+        patient_label: label.trim() || undefined,
+      },
+    });
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // Clipboard blocked (e.g. insecure context): show the link to copy by hand.
+      window.prompt(t("rx.build.copy_manual"), link);
+    }
+  };
+
+  return (
+    <details className="rx-builder">
+      <summary>{t("rx.build.title")}</summary>
+      <div className="form-row">
+        <label htmlFor="rx_label">{t("rx.build.label")}</label>
+        <input
+          id="rx_label"
+          type="text"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder={t("rx.build.label_ph")}
+        />
+      </div>
+      <div className="form-row">
+        <label htmlFor="rx_attempts">{t("rx.build.attempts")}</label>
+        <NumberField
+          id="rx_attempts"
+          min={1}
+          max={10}
+          value={attempts}
+          onChange={setAttempts}
+        />
+      </div>
+      <button type="button" className="rx-copy" onClick={copy}>
+        {copied ? t("rx.build.copied") : t("rx.build.copy")}
+      </button>
+    </details>
   );
 }
 
@@ -822,15 +674,8 @@ function StimGlyphSvg({
           strokeWidth={4}
         />
       ) : (
-        <rect
-          x={6}
-          y={6}
-          width={88}
-          height={88}
-          fill="#16171d"
-          stroke={stroke}
-          strokeWidth={4}
-        />
+        // shape_color: a coloured shape (both attributes vary).
+        <polygon points="50,6 94,94 6,94" fill={color} />
       )}
     </svg>
   );
@@ -855,34 +700,28 @@ function PreviewGlyph({
   if (dimension === "color") {
     return <circle cx={cx} cy={cy} r={r} fill={color} />;
   }
-  // shape / position: a neutral glyph with a thin outline so it stays visible
-  // on any background.
-  const fill = "#16171d";
   const sw = Math.max(0.5, r * 0.12);
-  if (dimension === "shape") {
+  if (dimension === "shape_color") {
+    // A coloured shape: both attributes vary.
     return (
       <polygon
         points={`${cx},${cy - r} ${cx + r},${cy + r} ${cx - r},${cy + r}`}
-        fill={fill}
-        stroke={stroke}
-        strokeWidth={sw}
+        fill={color}
       />
     );
   }
+  // shape: a neutral glyph with a thin outline so it stays visible on any bg.
   return (
-    <rect
-      x={cx - r}
-      y={cy - r}
-      width={r * 2}
-      height={r * 2}
-      fill={fill}
+    <polygon
+      points={`${cx},${cy - r} ${cx + r},${cy + r} ${cx - r},${cy + r}`}
+      fill="#16171d"
       stroke={stroke}
       strokeWidth={sw}
     />
   );
 }
 
-function Results({
+export function VDResults({
   outcome,
   onRestart,
   onBack,
@@ -917,6 +756,18 @@ function Results({
       : { x: 0.5, y: 0.5 };
 
   const pct = (v?: number) => (v !== undefined ? `${(v * 100).toFixed(0)}%` : "-");
+
+  // Combined shape+colour: per-attribute accuracy among the trials the patient saw.
+  const combined =
+    sessionFile.exercise.type === "visual_discrimination" &&
+    sessionFile.exercise.config.discrimination_dimension === "shape_color";
+  const seenTrials = trials.filter((tr) => tr.response.aware === true);
+  const attrAcc = (pick: (tr: (typeof trials)[number]) => boolean) =>
+    seenTrials.length > 0
+      ? seenTrials.filter(pick).length / seenTrials.length
+      : undefined;
+  const shapeAcc = attrAcc((tr) => tr.response.value_shape === tr.expected_shape);
+  const colorAcc = attrAcc((tr) => tr.response.value_color === tr.expected_color);
 
   const download = () => {
     const blob = new Blob([JSON.stringify(sessionFile, null, 2)], {
@@ -970,6 +821,20 @@ function Results({
             {s.rt_mean_ms !== undefined ? `${Math.round(s.rt_mean_ms)} ms` : "-"}
           </div>
         </div>
+        {combined && (
+          <>
+            <div className="metric">
+              <div className="metric-label">Forma corretta</div>
+              <div className="metric-value">{pct(shapeAcc)}</div>
+              <div className="metric-sub">tra i rilevati</div>
+            </div>
+            <div className="metric">
+              <div className="metric-label">Colore corretto</div>
+              <div className="metric-value">{pct(colorAcc)}</div>
+              <div className="metric-sub">tra i rilevati</div>
+            </div>
+          </>
+        )}
       </section>
 
       {bs && (

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import type { ReactNode } from "react";
 import type {
   PositionMode,
   SessionFile,
@@ -6,16 +6,14 @@ import type {
   TachistoscopicExercise,
   TachistoscopicTrial,
 } from "../../types/session";
-import { TachistoscopicRunner, type EngineResult } from "./Runner";
+import type { EngineResult } from "./Runner";
 import { computeTachistoscopicSummary } from "../../lib/summary";
 import {
-  PositionGridSelector,
   makeEmptyGrid,
   gridToPositionMode,
   type GridState,
 } from "../../components/PositionGridSelector";
 import { HeatmapReport, type HeatmapPoint } from "../../components/HeatmapReport";
-import { ColorField } from "../../components/ColorField";
 import { NumberField } from "../../components/NumberField";
 import { ConfigManager } from "../../components/ConfigManager";
 import {
@@ -24,10 +22,15 @@ import {
 } from "../../components/AppearancePreview";
 import { BackButton } from "../../components/BackButton";
 import { LanguageToggle, useT } from "../../i18n";
+import {
+  PositionSection,
+  AppearanceSection,
+  TimingSection,
+  AdvancedSection,
+} from "../shared/config/sections";
 import "./Tachistoscopic.css";
 
 type Config = TachistoscopicExercise["config"];
-type Mode = "configure" | "running" | "results";
 
 type PositionChoice =
   | "peripheral_left"
@@ -61,7 +64,7 @@ type FormState = {
 
 export type TachFormState = FormState;
 
-const DEFAULT_FORM: FormState = {
+export const TACH_DEFAULT_FORM: FormState = {
   n_trials: 5,
   exposure_ms: 250,
   iti_min_ms: 1000,
@@ -133,7 +136,7 @@ function positionFromForm(form: FormState): PositionMode {
   }
 }
 
-function configFromForm(form: FormState): Config {
+export function configFromForm(form: FormState): Config {
   const seed = form.random_seed.trim() === "" ? undefined : Number(form.random_seed);
   const customWords = parseCustomWords(form.custom_words);
   const isCustom = form.word_source === "custom";
@@ -171,106 +174,77 @@ function configFromForm(form: FormState): Config {
   };
 }
 
-type RunOutcome = {
+export type RunOutcome = {
   trials: TachistoscopicTrial[];
   durationMs: number;
   sessionFile: SessionFile;
 };
 
-export function Tachistoscopic({
-  onBack,
-  initialForm,
-}: {
-  onBack: () => void;
-  initialForm?: FormState;
-}) {
-  const [mode, setMode] = useState<Mode>("configure");
-  const [form, setForm] = useState<FormState>(
-    initialForm ? { ...DEFAULT_FORM, ...initialForm } : DEFAULT_FORM,
-  );
-  const [outcome, setOutcome] = useState<RunOutcome | null>(null);
-
-  const handleComplete = (engineResult: EngineResult) => {
-    const config = configFromForm(form);
-    const summary = computeTachistoscopicSummary(
-      engineResult.trials,
-      engineResult.duration_ms,
-    );
-    const sessionFile: SessionFile = {
-      schema_version: "1.0",
-      session: {
-        id: crypto.randomUUID(),
-        patient_id: "P-DEMO",
-        started_at: engineResult.started_at,
-        ended_at: engineResult.ended_at,
-        duration_ms: engineResult.duration_ms,
-        app_version: "0.1.0",
-        context: "hospital",
-        screen: {
-          width_px: window.innerWidth,
-          height_px: window.innerHeight,
-          device_pixel_ratio: window.devicePixelRatio,
-        },
-      },
-      exercise: {
-        type: "tachistoscopic",
-        config,
-        trials: engineResult.trials,
-      },
-      events: [],
-      summary,
-    };
-    setOutcome({
-      trials: engineResult.trials,
-      durationMs: engineResult.duration_ms,
-      sessionFile,
-    });
-    setMode("results");
-  };
-
-  if (mode === "running") {
-    return (
-      <TachistoscopicRunner
-        config={configFromForm(form)}
-        onComplete={handleComplete}
-        onCancel={() => setMode("configure")}
-      />
-    );
-  }
-
-  if (mode === "results" && outcome) {
-    return (
-      <Results
-        outcome={outcome}
-        onRestart={() => {
-          setOutcome(null);
-          setMode("configure");
-        }}
-        onBack={onBack}
-      />
-    );
-  }
-
-  return (
-    <ConfigureForm
-      form={form}
-      onChange={setForm}
-      onStart={() => setMode("running")}
-      onBack={onBack}
-    />
-  );
+/** Whether the form has a blocking issue that should disable "Start". */
+export function tachCannotStart(form: FormState): boolean {
+  const gridEmpty =
+    form.position === "custom_grid" &&
+    gridToPositionMode(form.position_grid) === null;
+  const customEmpty =
+    form.word_source === "custom" && parseCustomWords(form.custom_words).length === 0;
+  return gridEmpty || customEmpty;
 }
 
-function ConfigureForm({
+/** Assemble the downloadable session file from a completed run. */
+export function buildTachSessionFile(
+  form: FormState,
+  engineResult: EngineResult,
+): RunOutcome {
+  const config = configFromForm(form);
+  const summary = computeTachistoscopicSummary(
+    engineResult.trials,
+    engineResult.duration_ms,
+  );
+  const sessionFile: SessionFile = {
+    schema_version: "1.0",
+    session: {
+      id: crypto.randomUUID(),
+      patient_id: "P-DEMO",
+      started_at: engineResult.started_at,
+      ended_at: engineResult.ended_at,
+      duration_ms: engineResult.duration_ms,
+      app_version: "0.1.0",
+      context: "hospital",
+      screen: {
+        width_px: window.innerWidth,
+        height_px: window.innerHeight,
+        device_pixel_ratio: window.devicePixelRatio,
+      },
+    },
+    exercise: {
+      type: "tachistoscopic",
+      config,
+      trials: engineResult.trials,
+    },
+    events: [],
+    summary,
+  };
+  return {
+    trials: engineResult.trials,
+    durationMs: engineResult.duration_ms,
+    sessionFile,
+  };
+}
+
+/**
+ * Tachistoscopy-specific config-form body (everything below the Stimolo×Compito
+ * selector): word source, position, appearance, timing, advanced. The Compito
+ * (`patient_self_test`) is now driven by the unified selector, so the old
+ * "Modalità" section lives in {@link ExerciseTypeSection} instead.
+ */
+export function TachConfigBody({
   form,
   onChange,
-  onStart,
-  onBack,
+  typeSelector,
 }: {
   form: FormState;
   onChange: (next: FormState) => void;
-  onStart: () => void;
-  onBack: () => void;
+  typeSelector: ReactNode;
 }) {
   const t = useT();
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) =>
@@ -282,46 +256,13 @@ function ConfigureForm({
 
   const customWordCount = parseCustomWords(form.custom_words).length;
   const customEmpty = form.word_source === "custom" && customWordCount === 0;
-  const cannotStart = gridEmpty || customEmpty;
 
   return (
-    <>
-      <header className="config-topbar">
-        <div className="config-topbar-left">
-          <button
-            type="button"
-            className="config-back"
-            onClick={onBack}
-            aria-label={t("common.home")}
-          >
-            {t("common.home")}
-          </button>
-        </div>
-        <LanguageToggle />
-      </header>
-      <main className="page page-config">
-        <div className="form-layout">
-        <div className="form-main">
-          <section className="form">
-            <section className="form-section">
-              <h2 className="form-section-title">{t("tach.section.mode")}</h2>
-              <div className="form-row full checkbox">
-                <input
-                  id="patient_self_test"
-                  type="checkbox"
-                  checked={form.patient_self_test}
-                  onChange={(e) =>
-                    update("patient_self_test", e.target.checked)
-                  }
-                />
-                <label htmlFor="patient_self_test">
-                  {t("tach.field.patient_mode")}
-                </label>
-                <p className="hint">{t("tach.hint.patient_mode")}</p>
-              </div>
-            </section>
+    <div className="form-main">
+      <section className="form">
+        {typeSelector}
 
-            <section className="form-section">
+        <section className="form-section">
               <h2 className="form-section-title">{t("tach.section.stimuli")}</h2>
               <div className="form-row">
                 <label htmlFor="word_source">
@@ -451,148 +392,44 @@ function ConfigureForm({
               )}
             </section>
 
-            <section className="form-section">
-              <h2 className="form-section-title">{t("tach.section.position")}</h2>
-              <div className="form-row">
-                <label htmlFor="position">{t("tach.field.position")}</label>
-                <select
-                  id="position"
-                  value={form.position}
-                  onChange={(e) =>
-                    update("position", e.target.value as PositionChoice)
-                  }
-                >
-                  <option value="peripheral_both">
-                    {t("tach.pos.peripheral_both")}
-                  </option>
-                  <option value="peripheral_left">
-                    {t("tach.pos.peripheral_left")}
-                  </option>
-                  <option value="peripheral_right">
-                    {t("tach.pos.peripheral_right")}
-                  </option>
-                  <option value="custom_grid">
-                    {t("tach.pos.custom_grid")}
-                  </option>
-                </select>
-              </div>
+            <PositionSection
+              value={form.position}
+              grid={form.position_grid}
+              onValueChange={(v) => update("position", v as PositionChoice)}
+              onGridChange={(g) => update("position_grid", g)}
+            />
 
-              {form.position === "custom_grid" && (
-                <div className="form-row full">
-                  <label>{t("tach.field.allowed_regions")}</label>
-                  <PositionGridSelector
-                    grid={form.position_grid}
-                    onChange={(g) => update("position_grid", g)}
-                    fixationNorm={{ x: 0.5, y: 0.5 }}
-                  />
-                </div>
-              )}
-            </section>
+            <AppearanceSection
+              backgroundColor={form.background_color}
+              fixationColor={form.fixation_color}
+              textColor={form.text_color}
+              onBackgroundChange={(c) => update("background_color", c)}
+              onFixationChange={(c) => update("fixation_color", c)}
+              onTextChange={(c) => update("text_color", c)}
+            />
 
-            <section className="form-section">
-              <h2 className="form-section-title">
-                {t("tach.section.appearance")}
-              </h2>
-              <ColorField
-                id="background_color"
-                label={t("tach.field.background_color")}
-                value={form.background_color}
-                onChange={(c) => update("background_color", c)}
-              />
-              <ColorField
-                id="text_color"
-                label={t("tach.field.text_color")}
-                value={form.text_color}
-                onChange={(c) => update("text_color", c)}
-              />
-              <ColorField
-                id="fixation_color"
-                label={t("tach.field.fixation_color")}
-                value={form.fixation_color}
-                onChange={(c) => update("fixation_color", c)}
-              />
-            </section>
-
-            <section className="form-section">
-              <h2 className="form-section-title">{t("tach.section.timing")}</h2>
-              {form.word_source === "custom" ? (
-                <div className="form-row">
-                  <label>{t("tach.field.n_trials")}</label>
-                  <span className="derived-value">
-                    {t("tach.n_trials.from_list", {
+            <TimingSection
+              nTrials={form.n_trials}
+              nTrialsDerived={
+                form.word_source === "custom"
+                  ? t("tach.n_trials.from_list", {
                       n: parseCustomWords(form.custom_words).length,
-                    })}
-                  </span>
-                </div>
-              ) : (
-                <div className="form-row">
-                  <label htmlFor="n_trials">{t("tach.field.n_trials")}</label>
-                  <NumberField
-                    id="n_trials"
-                    min={1}
-                    max={500}
-                    value={form.n_trials}
-                    onChange={(n) => update("n_trials", n)}
-                  />
-                </div>
-              )}
+                    })
+                  : undefined
+              }
+              exposureMs={form.exposure_ms}
+              itiMinMs={form.iti_min_ms}
+              itiMaxMs={form.iti_max_ms}
+              onNTrialsChange={(n) => update("n_trials", n)}
+              onExposureChange={(n) => update("exposure_ms", n)}
+              onItiMinChange={(n) => update("iti_min_ms", n)}
+              onItiMaxChange={(n) => update("iti_max_ms", n)}
+            />
 
-              <div className="form-row">
-                <label htmlFor="exposure_ms">
-                  {t("tach.field.exposure")}
-                </label>
-                <NumberField
-                  id="exposure_ms"
-                  min={50}
-                  max={2000}
-                  step={50}
-                  value={form.exposure_ms}
-                  onChange={(n) => update("exposure_ms", n)}
-                />
-              </div>
-
-              <div className="form-row full">
-                <label>{t("tach.field.iti")}</label>
-                <div className="dual-input">
-                  <NumberField
-                    min={0}
-                    max={10000}
-                    step={50}
-                    value={form.iti_min_ms}
-                    onChange={(n) => update("iti_min_ms", n)}
-                    aria-label="min"
-                  />
-                  <span>–</span>
-                  <NumberField
-                    min={0}
-                    max={10000}
-                    step={50}
-                    value={form.iti_max_ms}
-                    onChange={(n) => update("iti_max_ms", n)}
-                    aria-label="max"
-                  />
-                </div>
-              </div>
-            </section>
-
-            <details className="form-section form-section-collapsible">
-              <summary className="form-section-title">
-                {t("tach.section.advanced")}
-              </summary>
-              <div className="form-row full">
-                <label htmlFor="random_seed">
-                  {t("tach.field.random_seed")}
-                </label>
-                <input
-                  id="random_seed"
-                  type="text"
-                  inputMode="numeric"
-                  placeholder={t("tach.placeholder.random_seed")}
-                  value={form.random_seed}
-                  onChange={(e) => update("random_seed", e.target.value)}
-                />
-              </div>
-            </details>
+            <AdvancedSection
+              randomSeed={form.random_seed}
+              onRandomSeedChange={(v) => update("random_seed", v)}
+            />
           </section>
 
           {gridEmpty && (
@@ -605,23 +442,11 @@ function ConfigureForm({
               {t("tach.custom_words.empty_error")}
             </div>
           )}
-        </div>
-
-        <aside className="form-summary">
-          <LiveSummary
-            form={form}
-            onStart={onStart}
-            disabled={cannotStart}
-            onLoad={(f) => onChange({ ...DEFAULT_FORM, ...f })}
-          />
-        </aside>
-      </div>
-    </main>
-    </>
+    </div>
   );
 }
 
-function LiveSummary({
+export function TachLiveSummary({
   form,
   onStart,
   disabled,
@@ -847,7 +672,7 @@ function RepetitionReport({
   );
 }
 
-function Results({
+export function TachResults({
   outcome,
   onRestart,
   onBack,

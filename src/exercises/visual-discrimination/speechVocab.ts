@@ -1,5 +1,6 @@
 import type { DiscriminationDimension } from "../../types/session";
 import { normalize, type VocabEntry } from "../../lib/speech";
+import { SHAPES } from "./stimuli";
 
 /** Accepted Italian phrasings for each forced-choice answer. */
 const COLOR_PHRASES: Record<string, string[]> = {
@@ -67,4 +68,24 @@ export function buildVocab(
   );
 
   return { entries, notSeen, flat };
+}
+
+export type CombinedVocab = {
+  shape: VocabEntry[];
+  color: VocabEntry[];
+  notSeen: string[];
+  /** Flat, de-duplicated word list (shape ∪ colour ∪ not-seen) for grammars. */
+  flat: string[];
+};
+
+/**
+ * Vocabulary for the combined shape+colour task: the patient says both (e.g.
+ * "cerchio rosso"), so we keep the two attribute vocabularies separate and match
+ * each against the same transcript.
+ */
+export function buildCombinedVocab(colors: string[]): CombinedVocab {
+  const shape = buildVocab("shape", [...SHAPES]);
+  const color = buildVocab("color", colors);
+  const flat = Array.from(new Set([...shape.flat, ...color.flat]));
+  return { shape: shape.entries, color: color.entries, notSeen: shape.notSeen, flat };
 }

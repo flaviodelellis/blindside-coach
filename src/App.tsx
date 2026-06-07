@@ -1,13 +1,10 @@
 import { useState } from "react";
-import {
-  Tachistoscopic,
-  type TachFormState,
-} from "./exercises/tachistoscopic/Tachistoscopic";
-import {
-  VisualDiscrimination,
-  type VDFormState,
-} from "./exercises/visual-discrimination/VisualDiscrimination";
+import { UnifiedExercise } from "./exercises/shared/config/UnifiedExercise";
+import type { TachFormState } from "./exercises/tachistoscopic/Tachistoscopic";
+import type { VDFormState } from "./exercises/visual-discrimination/VisualDiscrimination";
 import { PrescriptionLoader } from "./components/PrescriptionLoader";
+import { PatientPrescription } from "./patient/PatientPrescription";
+import { readPrescriptionFromHash } from "./lib/prescription";
 import type { SavedConfig } from "./lib/configStore";
 import { LanguageToggle, useT } from "./i18n";
 import { BackButton } from "./components/BackButton";
@@ -64,9 +61,16 @@ function Logo() {
 }
 
 function App() {
+  // A prescription link (#rx=…) puts the app in patient mode: the patient never
+  // sees the clinician home/config.
+  const [prescription] = useState(() => readPrescriptionFromHash());
   const [view, setView] = useState<View>("home");
   const [pending, setPending] = useState<SavedConfig | null>(null);
   const t = useT();
+
+  if (prescription) {
+    return <PatientPrescription prescription={prescription} />;
+  }
 
   const goHome = () => {
     setPending(null);
@@ -75,9 +79,10 @@ function App() {
 
   if (view === "tachistoscopic") {
     return (
-      <Tachistoscopic
+      <UnifiedExercise
         onBack={goHome}
-        initialForm={
+        initialExercise="tachistoscopia"
+        initialTachForm={
           pending?.exercise_type === "tachistoscopic"
             ? (pending.form as TachFormState)
             : undefined
@@ -88,17 +93,15 @@ function App() {
 
   if (view === "discrimination") {
     return (
-      <>
-        <LanguageToggle className="fixed" />
-        <VisualDiscrimination
-          onBack={goHome}
-          initialForm={
-            pending?.exercise_type === "visual_discrimination"
-              ? (pending.form as VDFormState)
-              : undefined
-          }
-        />
-      </>
+      <UnifiedExercise
+        onBack={goHome}
+        initialExercise="discriminazione"
+        initialVdForm={
+          pending?.exercise_type === "visual_discrimination"
+            ? (pending.form as VDFormState)
+            : undefined
+        }
+      />
     );
   }
 

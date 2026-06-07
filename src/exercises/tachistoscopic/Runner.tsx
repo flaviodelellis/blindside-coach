@@ -8,7 +8,7 @@ import type { WordEntry } from "../../types/wordLibrary";
 import { pickWords } from "../../lib/wordLibrary";
 import { makeRng } from "../../lib/rng";
 import { resolveDuration, resolvePosition } from "../../lib/runtime";
-import { playCue } from "../../lib/audio";
+import { useExerciseLoop } from "../shared/useExerciseLoop";
 import { useT } from "../../i18n";
 
 type Config = TachistoscopicExercise["config"];
@@ -29,7 +29,6 @@ type TrialParam = {
   iti_ms: number;
 };
 
-type Phase = "instructions" | "ready" | "iti" | "flash" | "awaiting" | "done";
 
 function normalize(s: string): string {
   return s.trim().toLocaleLowerCase("it");
@@ -57,90 +56,44 @@ export function TachistoscopicRunner({
     }));
   }, [config]);
 
-  const [trialIdx, setTrialIdx] = useState(0);
-  const [phase, setPhase] = useState<Phase>("instructions");
-  const [nRepetitions, setNRepetitions] = useState(0);
+  const isClinician = config.response_mode !== "patient_types";
 
-  const startedAtRef = useRef<string>("");
-  const startedPerfRef = useRef<number>(0);
-  const flashStartRef = useRef<number>(0);
-  const flashEndRef = useRef<number>(0);
-  const trialsOutRef = useRef<TachistoscopicTrial[]>([]);
-
-  const cur = params[trialIdx];
-
-  // ITI → flash transition. Each time the clinician launches a presentation
-  // (start, "Prossima", or "Ripeti") the run enters the ITI phase — sound the
-  // "go" cue here so it fires on every word, in clinician mode only.
-  useEffect(() => {
-    if (phase !== "iti" || !cur) return;
-    if (config.response_mode !== "patient_types") playCue();
-    const id = setTimeout(() => {
-      flashStartRef.current = performance.now();
-      setPhase("flash");
-    }, cur.iti_ms);
-    return () => clearTimeout(id);
-  }, [phase, cur, config.response_mode]);
-
-  // flash → awaiting transition
-  useEffect(() => {
-    if (phase !== "flash" || !cur) return;
-    const id = setTimeout(() => {
-      flashEndRef.current = performance.now();
-      setPhase("awaiting");
-    }, cur.exposure_ms_requested);
-    return () => clearTimeout(id);
-  }, [phase, cur]);
-
-  const finish = () => {
-    const endedPerf = performance.now();
-    onComplete({
-      trials: trialsOutRef.current,
-      started_at: startedAtRef.current,
-      ended_at: new Date().toISOString(),
-      duration_ms: endedPerf - startedPerfRef.current,
-    });
-    setPhase("done");
-  };
-
-  const start = () => {
-    startedAtRef.current = new Date().toISOString();
-    startedPerfRef.current = performance.now();
-    setNRepetitions(0);
-    // Clinician paces every word, including the first: wait for Space/Enter.
-    setPhase(config.response_mode !== "patient_types" ? "ready" : "iti");
-  };
-
-  const repeat = () => {
-    setNRepetitions((n) => n + 1);
-    setPhase("iti");
-  };
+  const {
+    phase,
+    trialIdx,
+    cur,
+    nRepetitions,
+    start,
+    go,
+    repeat,
+    commit,
+    flashTiming,
+    rtSinceFlashEnd,
+  } = useExerciseLoop<TrialParam, TachistoscopicTrial>({
+    params,
+    getIti: (p) => p.iti_ms,
+    getExposure: (p) => p.exposure_ms_requested,
+    // Clinician paces the first word (Space/Enter) and hears a cue each ITI.
+    readyGate: isClinician,
+    playCueOnIti: isClinician,
+    onComplete: (trials, timing) => onComplete({ trials, ...timing }),
+  });
 
   const recordAndAdvance = (response?: TachistoscopicTrial["response"]) => {
     if (!cur) return;
-    const t: TachistoscopicTrial = {
+    const ft = flashTiming();
+    commit({
       trial_id: cur.trial_id,
-      t_start_ms: Math.round(flashStartRef.current - startedPerfRef.current),
-      t_end_ms: Math.round(flashEndRef.current - startedPerfRef.current),
+      t_start_ms: ft.t_start_ms,
+      t_end_ms: ft.t_end_ms,
       word: cur.word,
       is_pseudoword: cur.is_pseudoword,
       position_norm: cur.position_norm,
       exposure_ms_requested: cur.exposure_ms_requested,
-      exposure_ms_measured: Math.round(
-        flashEndRef.current - flashStartRef.current,
-      ),
+      exposure_ms_measured: ft.exposure_ms_measured,
       n_repetitions: nRepetitions,
       response,
-    };
-    trialsOutRef.current.push(t);
-    setNRepetitions(0);
-
-    if (trialIdx + 1 >= params.length) {
-      finish();
-    } else {
-      setTrialIdx((i) => i + 1);
-      setPhase("iti");
-    }
+    });
   };
 
   // Clinician mode: "Prossima" means the patient recognized the word (possibly
@@ -149,12 +102,11 @@ export function TachistoscopicRunner({
   const markNotRecognized = () => recordAndAdvance({ detected: false });
 
   const submitPatientCorrect = (typed: string) => {
-    const rt_ms = performance.now() - flashEndRef.current;
     recordAndAdvance({
       detected: true,
       recognized_word: typed,
       recognition_correct: true,
-      rt_ms,
+      rt_ms: rtSinceFlashEnd(),
     });
   };
 
@@ -166,10 +118,8 @@ export function TachistoscopicRunner({
     });
   };
 
-  const submitPatientWrong = () => {
-    setNRepetitions((n) => n + 1);
-    setPhase("iti");
-  };
+  // Patient got it wrong: re-flash the same word, counting the re-exposure.
+  const submitPatientWrong = () => repeat();
 
   if (phase === "instructions") {
     return (
@@ -183,8 +133,6 @@ export function TachistoscopicRunner({
   }
 
   if (!cur) return null;
-
-  const isClinician = config.response_mode !== "patient_types";
 
   return (
     <div className="tach-host" style={{ background: config.background_color }}>
@@ -200,9 +148,9 @@ export function TachistoscopicRunner({
         <TinyCounter idx={trialIdx + 1} total={params.length} />
       )}
       {phase === "ready" && isClinician && (
-        <ReadyPanel onGo={() => setPhase("iti")} onCancel={onCancel} />
+        <ReadyPanel onGo={go} onCancel={onCancel} />
       )}
-      {phase === "awaiting" &&
+      {phase === "response" &&
         (isClinician ? (
           <ClinicianPanel
             trialIdx={trialIdx}
@@ -395,16 +343,16 @@ function ReadyPanel({
 
   const t = useT();
   return (
-    <div className="tach-panel tach-panel-slide is-visible">
-      <div className="tach-panel-meta">{t("tach.ready.prompt")}</div>
-      <div className="tach-panel-actions">
-        <button type="button" onClick={onGo}>
+    <div className="runbar-wrap">
+      <div className="runbar">
+        <span className="runbar-state">{t("tach.ready.prompt")}</span>
+        <button type="button" className="runbar-fix" onClick={onGo}>
           {t("tach.ready.go")} <kbd>↵</kbd>
         </button>
+        <button type="button" className="runbar-link" onClick={onCancel}>
+          {t("common.endSession")}
+        </button>
       </div>
-      <button type="button" className="link-btn" onClick={onCancel}>
-        {t("common.endSession")}
-      </button>
     </div>
   );
 }
@@ -426,8 +374,6 @@ function ClinicianPanel({
   onNotRecognized: () => void;
   onCancel: () => void;
 }) {
-  const [revealed, setRevealed] = useState(false);
-
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "r" || e.key === "R") {
@@ -445,44 +391,29 @@ function ClinicianPanel({
     return () => window.removeEventListener("keydown", onKey);
   }, [onRepeat, onNext, onNotRecognized]);
 
-  useEffect(() => {
-    let hideTimer: number | undefined;
-    const onMove = () => {
-      setRevealed(true);
-      if (hideTimer) window.clearTimeout(hideTimer);
-      hideTimer = window.setTimeout(() => setRevealed(false), 1800);
-    };
-    window.addEventListener("mousemove", onMove);
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      if (hideTimer) window.clearTimeout(hideTimer);
-    };
-  }, []);
-
   const t = useT();
+  // Discreet bottom bar (shared with discrimination): keeps the screen calm —
+  // just the fixation cross — while the clinician paces with the keyboard.
   return (
-    <div
-      className={`tach-panel tach-panel-slide${revealed ? " is-visible" : ""}`}
-      onMouseEnter={() => setRevealed(true)}
-    >
-      <div className="tach-panel-meta">
-        {t("tach.panel.trial", { idx: trialIdx + 1, tot: total })}
-        {repetitions > 0 && t("tach.panel.repetitions", { n: repetitions })}
-      </div>
-      <div className="tach-panel-actions">
-        <button type="button" className="secondary" onClick={onRepeat}>
+    <div className="runbar-wrap">
+      <div className="runbar">
+        <span className="runbar-state">
+          {t("tach.panel.trial", { idx: trialIdx + 1, tot: total })}
+          {repetitions > 0 && t("tach.panel.repetitions", { n: repetitions })}
+        </span>
+        <button type="button" className="runbar-fix" onClick={onRepeat}>
           {t("tach.panel.repeat")} <kbd>R</kbd>
         </button>
-        <button type="button" className="secondary" onClick={onNotRecognized}>
-          {t("tach.panel.not_recognized")} <kbd>X</kbd>
-        </button>
-        <button type="button" onClick={onNext}>
+        <button type="button" className="runbar-fix" onClick={onNext}>
           {t("tach.panel.next")} <kbd>↵</kbd>
         </button>
+        <button type="button" className="runbar-link" onClick={onNotRecognized}>
+          {t("tach.panel.not_recognized")} <kbd>X</kbd>
+        </button>
+        <button type="button" className="runbar-link" onClick={onCancel}>
+          {t("common.endSession")}
+        </button>
       </div>
-      <button type="button" className="link-btn" onClick={onCancel}>
-        {t("common.endSession")}
-      </button>
     </div>
   );
 }
