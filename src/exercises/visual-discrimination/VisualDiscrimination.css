@@ -344,6 +344,10 @@ span.vd-glyph.color-swatch {
   opacity: 0.6;
 }
 
+.runbar-answer.is-correct {
+  color: #7cfc9a;
+}
+
 .runbar-fix {
   border: 1px solid rgba(255, 255, 255, 0.35);
   background: transparent;

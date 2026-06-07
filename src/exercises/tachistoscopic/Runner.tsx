@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type {
   NormalizedPoint,
   TachistoscopicExercise,
@@ -9,9 +9,17 @@ import { pickWords } from "../../lib/wordLibrary";
 import { makeRng } from "../../lib/rng";
 import { resolveDuration, resolvePosition } from "../../lib/runtime";
 import { useExerciseLoop } from "../shared/useExerciseLoop";
+import { useSpeechResponse, normalize } from "../../lib/speech";
+import { NOT_SEEN_PHRASES } from "../visual-discrimination/speechVocab";
+import { playBeep } from "../../lib/audio";
 import { useT } from "../../i18n";
 
 type Config = TachistoscopicExercise["config"];
+
+/** Patient voice mode: feedback delay before advancing, and the listen window
+ * after which an unread word is re-exposed. */
+const PATIENT_FEEDBACK_MS = 1000;
+const PATIENT_WORD_TIMEOUT_MS = 6000;
 
 export type EngineResult = {
   trials: TachistoscopicTrial[];
@@ -29,10 +37,6 @@ type TrialParam = {
   iti_ms: number;
 };
 
-
-function normalize(s: string): string {
-  return s.trim().toLocaleLowerCase("it");
-}
 
 export function TachistoscopicRunner({
   config,
@@ -118,9 +122,6 @@ export function TachistoscopicRunner({
     });
   };
 
-  // Patient got it wrong: re-flash the same word, counting the re-exposure.
-  const submitPatientWrong = () => repeat();
-
   if (phase === "instructions") {
     return (
       <Instructions
@@ -162,14 +163,14 @@ export function TachistoscopicRunner({
             onCancel={onCancel}
           />
         ) : (
-          <PatientInputPanel
+          <PatientVoicePanel
             key={`${cur.trial_id}-${nRepetitions}`}
             trialIdx={trialIdx}
             total={params.length}
             repetitions={nRepetitions}
             targetWord={cur.word}
+            lang="it-IT"
             onCorrect={submitPatientCorrect}
-            onWrong={submitPatientWrong}
             onSkip={submitPatientSkip}
             onRepeat={repeat}
             onCancel={onCancel}
@@ -220,7 +221,7 @@ function Instructions({
                 {t("tach.run.patient.li3.pre")}
                 <b>{t("tach.run.patient.li3.btn")}</b>
                 {t("tach.run.patient.li3.mid")}
-                <kbd>↑</kbd>
+                <kbd>R</kbd>
                 {t("tach.run.patient.li3.post")}
               </li>
               <li>
@@ -418,13 +419,20 @@ function ClinicianPanel({
   );
 }
 
-function PatientInputPanel({
+/**
+ * Patient self-test by voice: the patient reads the flashed word aloud. We match
+ * the transcript against the known target (so open vocabulary isn't a problem) —
+ * a correct reading advances; "non visto" skips; otherwise the word is
+ * re-exposed (another brief flash) after a short listen window. Minimal UI: the
+ * same discreet bottom bar, the screen stays calm.
+ */
+function PatientVoicePanel({
   trialIdx,
   total,
   repetitions,
   targetWord,
+  lang,
   onCorrect,
-  onWrong,
   onSkip,
   onRepeat,
   onCancel,
@@ -433,87 +441,114 @@ function PatientInputPanel({
   total: number;
   repetitions: number;
   targetWord: string;
-  onCorrect: (typed: string) => void;
-  onWrong: () => void;
+  lang: string;
+  onCorrect: (heard: string) => void;
   onSkip: (lastTyped: string) => void;
   onRepeat: () => void;
   onCancel: () => void;
 }) {
-  const [value, setValue] = useState("");
-  const [error, setError] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const vocab = useMemo(() => {
+    const phrase = normalize(targetWord);
+    const notSeen = NOT_SEEN_PHRASES.map(normalize);
+    const flat = Array.from(
+      new Set([
+        ...phrase.split(" "),
+        ...notSeen.flatMap((p) => p.split(" ")),
+      ]),
+    );
+    return { entries: [{ value: targetWord, phrases: [phrase] }], notSeen, flat };
+  }, [targetWord]);
 
+  const { status, transcript, match } = useSpeechResponse({
+    active: true,
+    engine: "web-speech",
+    lang,
+    entries: vocab.entries,
+    notSeenPhrases: vocab.notSeen,
+    vocabulary: vocab.flat,
+  });
+
+  const decidedRef = useRef(false);
+  const advanceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const latest = useRef({ onCorrect, onSkip, transcript });
   useEffect(() => {
-    inputRef.current?.focus();
+    latest.current = { onCorrect, onSkip, transcript };
+  });
+  useEffect(() => () => {
+    if (advanceRef.current) clearTimeout(advanceRef.current);
   }, []);
 
-  const submit = () => {
-    const trimmed = value.trim();
-    if (trimmed.length === 0) return;
-    if (normalize(trimmed) === normalize(targetWord)) {
-      onCorrect(trimmed);
+  const decide = (kind: "correct" | "not_seen") => {
+    if (decidedRef.current) return;
+    decidedRef.current = true;
+    if (kind === "correct") {
+      playBeep({ frequency: 880, durationMs: 180 });
+      advanceRef.current = setTimeout(
+        () => latest.current.onCorrect(latest.current.transcript),
+        PATIENT_FEEDBACK_MS,
+      );
     } else {
-      setError(true);
-      window.setTimeout(() => onWrong(), 600);
+      latest.current.onSkip("");
     }
   };
 
-  const onKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      submit();
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      onRepeat();
-    }
-  };
+  // Decide on a confident spoken answer.
+  useEffect(() => {
+    if (match.kind === "value") decide("correct");
+    else if (match.kind === "not_seen") decide("not_seen");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transcript]);
+
+  // No correct reading in time → re-expose the word (another brief flash).
+  useEffect(() => {
+    const id = setTimeout(() => {
+      if (!decidedRef.current) onRepeat();
+    }, PATIENT_WORD_TIMEOUT_MS);
+    return () => clearTimeout(id);
+  }, [onRepeat]);
+
+  // R re-flashes manually.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "r" || e.key === "R") {
+        e.preventDefault();
+        onRepeat();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onRepeat]);
 
   const t = useT();
   return (
-    <div className="tach-panel">
-      <div className="tach-panel-meta">
-        {t("tach.panel.trial", { idx: trialIdx + 1, tot: total })}
-        {repetitions > 0 && t("tach.panel.attempts", { n: repetitions + 1 })}
-      </div>
-      <input
-        ref={inputRef}
-        type="text"
-        className={`tach-input${error ? " error" : ""}`}
-        value={value}
-        onChange={(e) => {
-          setValue(e.target.value);
-          if (error) setError(false);
-        }}
-        onKeyDown={onKeyDown}
-        placeholder={t("tach.panel.placeholder")}
-        autoComplete="off"
-        autoCorrect="off"
-        spellCheck={false}
-        disabled={error}
-      />
-      <div className="tach-panel-actions">
-        <button type="button" className="secondary" onClick={onRepeat}>
-          {t("tach.panel.repeat")} <kbd>↑</kbd>
+    <div className="runbar-wrap">
+      <div className="runbar">
+        <span className="runbar-state">
+          {t("tach.panel.trial", { idx: trialIdx + 1, tot: total })}
+          {repetitions > 0 && t("tach.panel.attempts", { n: repetitions + 1 })}
+        </span>
+        <span className={`runbar-mic runbar-mic-${status}`} aria-hidden>
+          🎤
+        </span>
+        <span
+          className={`runbar-answer${match.kind === "value" ? " is-correct" : ""}`}
+        >
+          {match.kind === "value"
+            ? "✓ Giusto!"
+            : transcript
+              ? `«${transcript}»`
+              : "Leggi la parola ad alta voce"}
+        </span>
+        <button type="button" className="runbar-fix" onClick={onRepeat}>
+          {t("tach.panel.repeat")} <kbd>R</kbd>
         </button>
-        <button type="button" onClick={submit} disabled={error}>
-          {t("tach.panel.confirm")} <kbd>↵</kbd>
+        <button type="button" className="runbar-link" onClick={() => onSkip("")}>
+          {t("tach.panel.skip")}
+        </button>
+        <button type="button" className="runbar-link" onClick={onCancel}>
+          {t("common.endSession")}
         </button>
       </div>
-      <button
-        type="button"
-        className="link-btn"
-        onClick={() => onSkip(value.trim())}
-      >
-        {t("tach.panel.skip")}
-      </button>
-      <button
-        type="button"
-        className="link-btn"
-        style={{ marginLeft: "0.8rem" }}
-        onClick={onCancel}
-      >
-        {t("common.endSession")}
-      </button>
     </div>
   );
 }

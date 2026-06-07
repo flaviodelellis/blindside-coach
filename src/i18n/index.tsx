@@ -142,7 +142,7 @@ const it: Dict = {
   "tach.run.position":
     "Posizionati davanti allo schermo, con lo sguardo sulla crocetta centrale.",
   "tach.run.patient.p1":
-    "Ogni parola apparirà brevemente in un punto dello schermo. Subito dopo, digita la parola che hai visto e premi Invio.",
+    "Ogni parola apparirà brevemente in un punto dello schermo. Subito dopo, di' ad alta voce la parola che hai visto.",
   "tach.run.patient.li1": "Se è corretta, si passa alla parola successiva.",
   "tach.run.patient.li2":
     "Se è sbagliata, la parola verrà mostrata di nuovo finché non la riconoscerai.",
@@ -482,7 +482,7 @@ const en: Dict = {
   "tach.run.position":
     "Sit in front of the screen and keep your eyes on the central cross.",
   "tach.run.patient.p1":
-    "Each word will briefly appear somewhere on the screen. Right after, type the word you saw and press Enter.",
+    "Each word will briefly appear somewhere on the screen. Right after, say the word you saw out loud.",
   "tach.run.patient.li1": "If correct, you move on to the next word.",
   "tach.run.patient.li2":
     "If wrong, the word will be shown again until you recognize it.",
