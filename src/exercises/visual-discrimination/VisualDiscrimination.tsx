@@ -51,6 +51,8 @@ type FormState = {
   position: PositionChoice;
   position_grid: GridState;
   response_input: "manual" | "speech";
+  /** Language the patient answers in — drives speech recognition. */
+  speech_language: "it" | "en";
   random_seed: string;
 };
 
@@ -70,6 +72,7 @@ export const VD_DEFAULT_FORM: FormState = {
   position_grid: makeEmptyGrid(5, 5),
   // Discriminazione is always voice + clinician confirmation (manual fallback).
   response_input: "speech",
+  speech_language: "it",
   random_seed: "",
 };
 
@@ -148,7 +151,7 @@ export function configFromForm(form: FormState): Config {
     n_trials: form.n_trials,
     response_mode: "click",
     response_input: form.response_input,
-    speech_lang: "it-IT",
+    speech_lang: form.speech_language === "en" ? "en-US" : "it-IT",
     response_collector: "clinician",
     awareness_scale: "binary",
     fixation: {
@@ -233,9 +236,29 @@ export function VDConfigBody({
       <section className="form">
         {typeSelector}
         {form.response_input === "speech" && (
-          <p className="form-hint">
-            {t("vd.hint.speech", { what: t(`vd.what.${form.dimension}`) })}
-          </p>
+          <>
+            <p className="form-hint">
+              {t("vd.hint.speech", { what: t(`vd.what.${form.dimension}`) })}
+            </p>
+            <div className="form-row">
+              <label htmlFor="speech_language">
+                {t("vd.field.speech_language")}
+              </label>
+              <select
+                id="speech_language"
+                value={form.speech_language}
+                onChange={(e) =>
+                  update(
+                    "speech_language",
+                    e.target.value as FormState["speech_language"],
+                  )
+                }
+              >
+                <option value="it">{t("vd.speech_lang.it")}</option>
+                <option value="en">{t("vd.speech_lang.en")}</option>
+              </select>
+            </div>
+          </>
         )}
 
         <section className="form-section">

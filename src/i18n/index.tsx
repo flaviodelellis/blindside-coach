@@ -251,6 +251,9 @@ const it: Dict = {
   "vd.response.speech": "Vocale (il paziente parla)",
   "vd.hint.speech":
     "Il paziente dice ad alta voce {what} percepito; il sistema lo trascrive e propone la risposta, che il clinico conferma o corregge. Richiede microfono.",
+  "vd.field.speech_language": "Lingua della risposta",
+  "vd.speech_lang.it": "Italiano",
+  "vd.speech_lang.en": "Inglese",
   "vd.what.color": "il colore",
   "vd.what.shape": "la forma",
   "vd.what.position": "il lato",
@@ -583,6 +586,9 @@ const en: Dict = {
   "vd.response.speech": "Voice (patient speaks)",
   "vd.hint.speech":
     "The patient says aloud {what} they perceived; the app transcribes it and proposes an answer that the clinician confirms or corrects. Requires a microphone.",
+  "vd.field.speech_language": "Response language",
+  "vd.speech_lang.it": "Italian",
+  "vd.speech_lang.en": "English",
   "vd.what.color": "the colour",
   "vd.what.shape": "the shape",
   "vd.what.position": "the side",

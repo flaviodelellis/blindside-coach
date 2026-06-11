@@ -11,7 +11,7 @@ import {
 import { useExerciseLoop } from "../shared/useExerciseLoop";
 import { colorLabel, shapeLabel } from "./labels";
 import { useSpeechResponse, matchUtterance, type MatchOutcome } from "../../lib/speech";
-import { buildVocab, buildCombinedVocab } from "./speechVocab";
+import { buildVocab, buildCombinedVocab, vocabLang } from "./speechVocab";
 import { playBeep } from "../../lib/audio";
 
 /** How long the patient sees per-attempt feedback before the next presentation. */
@@ -396,8 +396,8 @@ function CombinedResponsePanel({
   const submittedRef = useRef(false);
 
   const vocab = useMemo(
-    () => buildCombinedVocab(param.color_alternatives ?? []),
-    [param.color_alternatives],
+    () => buildCombinedVocab(param.color_alternatives ?? [], vocabLang(config.speech_lang)),
+    [param.color_alternatives, config.speech_lang],
   );
 
   const { status, transcript } = useSpeechResponse({
@@ -581,8 +581,8 @@ function PatientCombinedPanel({
   ) => void;
 }) {
   const vocab = useMemo(
-    () => buildCombinedVocab(param.color_alternatives ?? []),
-    [param.color_alternatives],
+    () => buildCombinedVocab(param.color_alternatives ?? [], vocabLang(config.speech_lang)),
+    [param.color_alternatives, config.speech_lang],
   );
   const { status, transcript } = useSpeechResponse({
     active: true,
@@ -708,8 +708,8 @@ function SingleResponsePanel({
       : "Che forma ha indicato il paziente?";
 
   const vocab = useMemo(
-    () => buildVocab(param.dimension, param.alternatives),
-    [param.dimension, param.alternatives],
+    () => buildVocab(param.dimension, param.alternatives, vocabLang(config.speech_lang)),
+    [param.dimension, param.alternatives, config.speech_lang],
   );
 
   const { status, transcript, match } = useSpeechResponse({
