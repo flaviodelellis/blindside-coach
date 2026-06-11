@@ -24,7 +24,6 @@ import {
   PositionSection,
   AppearanceSection,
   TimingSection,
-  AdvancedSection,
 } from "../shared/config/sections";
 import "../tachistoscopic/Tachistoscopic.css";
 import "./VisualDiscrimination.css";
@@ -53,7 +52,6 @@ type FormState = {
   response_input: "manual" | "speech";
   /** Language the patient answers in — drives speech recognition. */
   speech_language: "it" | "en";
-  random_seed: string;
 };
 
 export type VDFormState = FormState;
@@ -73,7 +71,6 @@ export const VD_DEFAULT_FORM: FormState = {
   // Discriminazione is always voice + clinician confirmation (manual fallback).
   response_input: "speech",
   speech_language: "it",
-  random_seed: "",
 };
 
 const COLOR_HEX: Record<keyof FormState["colors"], string> = {
@@ -124,8 +121,6 @@ export function configFromForm(form: FormState): Config {
     .filter((c) => form.colors[c])
     .map((c) => COLOR_HEX[c]);
 
-  const seed = form.random_seed.trim() === "" ? undefined : Number(form.random_seed);
-
   const kinds =
     form.dimension === "shape"
       ? (["shape"] as const)
@@ -160,7 +155,6 @@ export function configFromForm(form: FormState): Config {
       color: form.fixation_color,
     },
     feedback: {},
-    random_seed: seed,
   };
 }
 
@@ -211,7 +205,7 @@ export function buildVDSessionFile(
 
 /**
  * Discrimination-specific config-form body (everything below the Stimolo×Compito
- * selector): response input, stimuli, position, appearance, timing, advanced.
+ * selector): response input, stimuli, position, appearance, timing.
  * The dimension (forma/colore/posizione) is driven by the unified selector's
  * Stimolo, so the old "Compito" section is gone — `form.dimension` is set by the
  * parent.
@@ -333,11 +327,6 @@ export function VDConfigBody({
                 onExposureChange={(n) => update("exposure_ms", n)}
                 onItiMinChange={(n) => update("iti_min_ms", n)}
                 onItiMaxChange={(n) => update("iti_max_ms", n)}
-              />
-
-              <AdvancedSection
-                randomSeed={form.random_seed}
-                onRandomSeedChange={(v) => update("random_seed", v)}
               />
             </section>
 
