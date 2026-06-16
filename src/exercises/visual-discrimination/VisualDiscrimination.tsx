@@ -742,6 +742,7 @@ export function VDResults({
   onRestart: () => void;
   onBack: () => void;
 }) {
+  const t = useT();
   const { sessionFile } = outcome;
   const s = sessionFile.summary;
   const bs = s.blindsight;
@@ -799,36 +800,38 @@ export function VDResults({
     <main className="page">
       <BackButton onClick={onBack} className="fixed" />
       <header>
-        <h1>Risultati</h1>
+        <h1>{t("vd.res.title")}</h1>
         <p className="subtitle">
-          Sessione di {Math.round(outcome.durationMs / 1000)} secondi,{" "}
-          {s.n_trials} tentativi completati.
+          {t("vd.res.subtitle", {
+            sec: Math.round(outcome.durationMs / 1000),
+            n: s.n_trials,
+          })}
         </p>
       </header>
 
       <section className="result-grid">
         {bs && (
           <div className="metric">
-            <div className="metric-label">Rilevati</div>
+            <div className="metric-label">{t("vd.res.detected")}</div>
             <div className="metric-value">
               {pct(s.n_trials > 0 ? bs.n_aware / s.n_trials : undefined)}
             </div>
             <div className="metric-sub">
-              {bs.n_aware}/{s.n_trials} visti
+              {t("vd.res.seen_count", { seen: bs.n_aware, total: s.n_trials })}
             </div>
           </div>
         )}
         <div className="metric metric-highlight">
-          <div className="metric-label">Identificazione</div>
+          <div className="metric-label">{t("vd.res.identification")}</div>
           <div className="metric-value">{pct(bs?.accuracy_aware)}</div>
           {bs && (
             <div className="metric-sub">
-              corrette tra i rilevati · caso {pct(bs.chance_level)}
+              {t("vd.res.correct_among_chance", { pct: pct(bs.chance_level) })}
             </div>
           )}
         </div>
         <div className="metric">
-          <div className="metric-label">RT medio</div>
+          <div className="metric-label">{t("vd.res.rt_mean")}</div>
           <div className="metric-value">
             {s.rt_mean_ms !== undefined ? `${Math.round(s.rt_mean_ms)} ms` : "-"}
           </div>
@@ -836,14 +839,14 @@ export function VDResults({
         {combined && (
           <>
             <div className="metric">
-              <div className="metric-label">Forma corretta</div>
+              <div className="metric-label">{t("vd.res.shape_correct")}</div>
               <div className="metric-value">{pct(shapeAcc)}</div>
-              <div className="metric-sub">tra i rilevati</div>
+              <div className="metric-sub">{t("vd.res.among_detected")}</div>
             </div>
             <div className="metric">
-              <div className="metric-label">Colore corretto</div>
+              <div className="metric-label">{t("vd.res.color_correct")}</div>
               <div className="metric-value">{pct(colorAcc)}</div>
-              <div className="metric-sub">tra i rilevati</div>
+              <div className="metric-sub">{t("vd.res.among_detected")}</div>
             </div>
           </>
         )}
@@ -851,10 +854,10 @@ export function VDResults({
 
       {bs && (
         <p className="form-hint">
-          <b>Rilevati</b>: quante volte il paziente ha visto lo stimolo.{" "}
-          <b>Identificazione</b>: tra i rilevati, quante volte ha indicato la
-          risposta corretta (livello di caso {pct(bs.chance_level)}). La heatmap
-          mostra dove l'identificazione è corretta nel campo visivo.
+          <b>{t("vd.res.detected")}</b>
+          {t("vd.res.hint.detected")}
+          <b>{t("vd.res.identification")}</b>
+          {t("vd.res.hint.identification", { pct: pct(bs.chance_level) })}
         </p>
       )}
 
@@ -868,20 +871,20 @@ export function VDResults({
 
       {s.per_quadrant && (
         <section className="breakdown">
-          <h2>Per quadrante</h2>
+          <h2>{t("vd.res.per_quadrant")}</h2>
           <table>
             <thead>
               <tr>
-                <th>Quadrante</th>
-                <th>Presentati</th>
-                <th>Corrette</th>
-                <th>RT medio</th>
+                <th>{t("vd.res.th.quadrant")}</th>
+                <th>{t("vd.res.th.presented")}</th>
+                <th>{t("vd.res.th.correct")}</th>
+                <th>{t("vd.res.th.rt")}</th>
               </tr>
             </thead>
             <tbody>
               {Object.entries(s.per_quadrant).map(([q, stats]) => (
                 <tr key={q}>
-                  <td>{quadrantLabel(q)}</td>
+                  <td>{quadrantLabel(q, t)}</td>
                   <td>{stats.n_presented}</td>
                   <td>{stats.n_detected}</td>
                   <td>
@@ -898,26 +901,26 @@ export function VDResults({
 
       <div className="form-actions">
         <button type="button" onClick={download}>
-          Scarica file di sessione (JSON)
+          {t("vd.res.download")}
         </button>
         <button type="button" className="secondary" onClick={onRestart}>
-          Nuova configurazione
+          {t("vd.res.new_config")}
         </button>
       </div>
     </main>
   );
 }
 
-function quadrantLabel(q: string): string {
+function quadrantLabel(
+  q: string,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
   switch (q) {
     case "upper_left":
-      return "Alto sinistra";
     case "upper_right":
-      return "Alto destra";
     case "lower_left":
-      return "Basso sinistra";
     case "lower_right":
-      return "Basso destra";
+      return t(`vd.res.quad.${q}`);
     default:
       return q;
   }

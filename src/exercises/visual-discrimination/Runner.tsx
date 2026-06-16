@@ -9,6 +9,7 @@ import {
   type DiscriminationTrialParam,
 } from "./engine";
 import { useExerciseLoop } from "../shared/useExerciseLoop";
+import { useT } from "../../i18n";
 import { colorLabel, shapeLabel } from "./labels";
 import { useSpeechResponse, matchUtterance, type MatchOutcome } from "../../lib/speech";
 import { buildVocab, buildCombinedVocab, vocabLang } from "./speechVocab";
@@ -21,6 +22,8 @@ const PATIENT_FEEDBACK_MS = 1100;
 const AUTO_CONFIRM_MS = 1500;
 
 type Config = VisualDiscriminationExercise["config"];
+
+type Translate = (key: string, params?: Record<string, string | number>) => string;
 
 export type EngineResult = {
   trials: DiscriminationTrial[];
@@ -299,33 +302,40 @@ function Instructions({
   onStart: () => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   const dim = config.discrimination_dimension;
   const what =
     dim === "color"
-      ? "che colore era lo stimolo"
+      ? t("vd.run.ask.color")
       : dim === "shape"
-        ? "che forma aveva lo stimolo"
-        : "che forma e che colore aveva lo stimolo";
+        ? t("vd.run.ask.shape")
+        : t("vd.run.ask.shape_color");
   return (
     <div className="tach-host" style={{ background: "#fff", color: "#16171d" }}>
       <div className="tach-instructions">
-        <h2>Discriminazione visiva — scelta forzata</h2>
-        <p>Il paziente fissa la crocetta al centro dello schermo.</p>
+        <h2>{t("vd.run.title")}</h2>
+        <p>{t("vd.run.intro.fixate")}</p>
         <p>
-          A ogni tentativo compare per pochissimo tempo uno stimolo in periferia.
-          Subito dopo, chiedi al paziente <b>{what}</b> e registra la sua risposta.
+          {t("vd.run.intro.flash")}{" "}
+          {t("vd.run.intro.ask.pre")}<b>{what}</b>{t("vd.run.intro.ask.post")}
         </p>
         <ul>
-          <li>Se identifica lo stimolo, seleziona la risposta indicata.</li>
-          <li>Se dichiara di non aver visto nulla, seleziona <b>«Non ha visto»</b>.</li>
+          <li>{t("vd.run.intro.li_identify")}</li>
+          <li>
+            {t("vd.run.intro.li_notseen.pre")}
+            <b>«{t("vd.run.notseen")}»</b>
+            {t("vd.run.intro.li_notseen.post")}
+          </li>
         </ul>
-        <p>Premi <kbd>Esc</kbd> in qualunque momento per interrompere.</p>
+        <p>
+          {t("vd.run.intro.esc.pre")}<kbd>Esc</kbd>{t("vd.run.intro.esc.post")}
+        </p>
         <div className="form-actions" style={{ marginTop: "1.5rem" }}>
           <button type="button" onClick={onStart}>
-            Avvia ({nTrials} tentativi) →
+            {t("vd.run.start", { n: nTrials })}
           </button>
           <button type="button" className="secondary" onClick={onCancel}>
-            Annulla
+            {t("common.cancel")}
           </button>
         </div>
       </div>
@@ -390,6 +400,7 @@ function CombinedResponsePanel({
   onRepeat: () => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   const [selShape, setSelShape] = useState<string | null>(null);
   const [selColor, setSelColor] = useState<string | null>(null);
   const [correcting, setCorrecting] = useState(false);
@@ -465,9 +476,9 @@ function CombinedResponsePanel({
     `vd-chip${active ? " is-selected" : proposed ? " is-proposed" : ""}`;
 
   const settledLabel = isNotSeen
-    ? "Non ha visto"
+    ? t("vd.run.notseen")
     : effShape !== null && effColor !== null
-      ? `${shapeLabel(effShape)} ${colorLabel(effColor)}`
+      ? `${shapeLabel(effShape, t)} ${colorLabel(effColor, t)}`
       : null;
 
   return (
@@ -475,28 +486,28 @@ function CombinedResponsePanel({
       {correcting && (
         <div className="vd-correct">
           <div className="vd-correct-row">
-            <span className="vd-correct-label">Forma</span>
+            <span className="vd-correct-label">{t("vd.run.field.shape")}</span>
             {(param.shape_alternatives ?? []).map((s) => (
               <button
                 key={s}
                 type="button"
                 className={chip(selShape === s, selShape === null && proposedShape === s)}
                 onClick={() => setSelShape(s)}
-                title={altLabel("shape", s)}
+                title={altLabel("shape", s, t)}
               >
                 <AltGlyph dimension="shape" value={s} />
               </button>
             ))}
           </div>
           <div className="vd-correct-row">
-            <span className="vd-correct-label">Colore</span>
+            <span className="vd-correct-label">{t("vd.run.field.color")}</span>
             {(param.color_alternatives ?? []).map((c) => (
               <button
                 key={c}
                 type="button"
                 className={chip(selColor === c, selColor === null && proposedColor === c)}
                 onClick={() => setSelColor(c)}
-                title={altLabel("color", c)}
+                title={altLabel("color", c, t)}
               >
                 <AltGlyph dimension="color" value={c} />
               </button>
@@ -504,7 +515,7 @@ function CombinedResponsePanel({
           </div>
           <div className="vd-correct-actions">
             <button type="button" className="runbar-link" onClick={() => submit(null, null)}>
-              Non ha visto
+              {t("vd.run.notseen")}
             </button>
             <button
               type="button"
@@ -512,10 +523,10 @@ function CombinedResponsePanel({
               disabled={effShape === null || effColor === null}
               onClick={() => submit(effShape, effColor)}
             >
-              Registra
+              {t("vd.run.record")}
             </button>
             <button type="button" className="runbar-link" onClick={() => setCorrecting(false)}>
-              Annulla
+              {t("common.cancel")}
             </button>
           </div>
         </div>
@@ -530,10 +541,10 @@ function CombinedResponsePanel({
             ? `«${settledLabel}»`
             : transcript
               ? `«${transcript}»`
-              : "in ascolto…"}
+              : t("vd.run.listening")}
         </span>
         {!correcting && settledLabel && (
-          <span className="runbar-state">registro…</span>
+          <span className="runbar-state">{t("vd.run.recording")}</span>
         )}
         {!correcting && (
           <button
@@ -541,14 +552,14 @@ function CombinedResponsePanel({
             className="runbar-fix"
             onClick={() => setCorrecting(true)}
           >
-            ✎ correggi
+            {t("vd.run.correct")}
           </button>
         )}
         <button type="button" className="runbar-link" onClick={onRepeat}>
-          Ripeti
+          {t("vd.run.repeat")}
         </button>
         <button type="button" className="runbar-link" onClick={onCancel}>
-          Esci
+          {t("vd.run.exit")}
         </button>
       </div>
     </div>
@@ -580,6 +591,7 @@ function PatientCombinedPanel({
     extra?: { transcript?: string; asr_confidence?: number },
   ) => void;
 }) {
+  const t = useT();
   const vocab = useMemo(
     () => buildCombinedVocab(param.color_alternatives ?? [], vocabLang(config.speech_lang)),
     [param.color_alternatives, config.speech_lang],
@@ -659,28 +671,30 @@ function PatientCombinedPanel({
 
   return (
     <div className="patient-response">
-      <div className="patient-prompt">Che cosa hai visto? Dillo ad alta voce.</div>
-      <div className={`patient-mic patient-mic-${status}`}>{micHint(status)}</div>
+      <div className="patient-prompt">{t("vd.run.patient.prompt")}</div>
+      <div className={`patient-mic patient-mic-${status}`}>{micHint(status, t)}</div>
       {transcript && <div className="patient-heard">«{transcript}»</div>}
       {feedback && (
         <div className={`patient-feedback patient-feedback-${feedback}`}>
-          {feedback === "correct" ? "Giusto!" : "Riproviamo"}
+          {feedback === "correct"
+            ? t("vd.run.patient.correct")
+            : t("vd.run.patient.retry")}
         </div>
       )}
       {maxAttempts > 1 && (
         <div className="patient-attempt">
-          Tentativo {attempt} di {maxAttempts}
+          {t("vd.run.patient.attempt", { n: attempt, total: maxAttempts })}
         </div>
       )}
     </div>
   );
 }
 
-function micHint(status: string): string {
-  if (status === "unsupported") return "Microfono non disponibile";
-  if (status === "error") return "Problema con il microfono";
-  if (status === "loading") return "Attendi…";
-  if (status === "listening") return "🎤 Ti ascolto…";
+function micHint(status: string, t: Translate): string {
+  if (status === "unsupported") return t("vd.run.mic.unsupported");
+  if (status === "error") return t("vd.run.mic.error");
+  if (status === "loading") return t("vd.run.mic.loading");
+  if (status === "listening") return t("vd.run.mic.listening");
   return "";
 }
 
@@ -700,12 +714,13 @@ function SingleResponsePanel({
   onRepeat: () => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   const dim = param.dimension;
   const speech = config.response_input === "speech";
   const prompt =
     dim === "color"
-      ? "Che colore ha indicato il paziente?"
-      : "Che forma ha indicato il paziente?";
+      ? t("vd.run.prompt.color")
+      : t("vd.run.prompt.shape");
 
   const vocab = useMemo(
     () => buildVocab(param.dimension, param.alternatives, vocabLang(config.speech_lang)),
@@ -760,9 +775,9 @@ function SingleResponsePanel({
           transcript={transcript}
           matched={
             match.kind === "value"
-              ? altLabel(dim, match.value)
+              ? altLabel(dim, match.value, t)
               : match.kind === "not_seen"
-                ? "Non ha visto"
+                ? t("vd.run.notseen")
                 : null
           }
         />
@@ -777,7 +792,7 @@ function SingleResponsePanel({
             onClick={() => onSubmit(alt)}
           >
             <AltGlyph dimension={dim} value={alt} />
-            <span>{altLabel(dim, alt)}</span>
+            <span>{altLabel(dim, alt, t)}</span>
           </button>
         ))}
         <button
@@ -788,7 +803,7 @@ function SingleResponsePanel({
           <span className="vd-glyph vd-glyph-empty" aria-hidden>
             ✕
           </span>
-          <span>Non ha visto</span>
+          <span>{t("vd.run.notseen")}</span>
         </button>
       </div>
 
@@ -799,16 +814,22 @@ function SingleResponsePanel({
           onClick={confirmProposal}
           disabled={!hasProposal}
         >
-          Conferma «{proposedNotSeen ? "Non ha visto" : proposedValue ? altLabel(dim, proposedValue) : "—"}» (Invio)
+          {t("vd.run.confirm", {
+            value: proposedNotSeen
+              ? t("vd.run.notseen")
+              : proposedValue
+                ? altLabel(dim, proposedValue, t)
+                : "—",
+          })}
         </button>
       )}
 
       <button type="button" className="vd-repeat" onClick={onRepeat}>
-        Ripeti <kbd>R</kbd>
+        {t("vd.run.repeat")} <kbd>R</kbd>
       </button>
 
       <button type="button" className="vd-cancel" onClick={onCancel}>
-        Interrompi (Esc)
+        {t("vd.run.stop")}
       </button>
     </div>
   );
@@ -823,11 +844,12 @@ function SpeechStatusBar({
   transcript: string;
   matched: string | null;
 }) {
+  const t = useT();
   let hint: string;
-  if (status === "unsupported") hint = "Riconoscimento vocale non disponibile in questo browser.";
-  else if (status === "error") hint = "Errore microfono / riconoscimento.";
-  else if (status === "loading") hint = "Avvio microfono…";
-  else if (status === "listening") hint = "In ascolto…";
+  if (status === "unsupported") hint = t("vd.run.speech.unsupported");
+  else if (status === "error") hint = t("vd.run.speech.error");
+  else if (status === "loading") hint = t("vd.run.speech.loading");
+  else if (status === "listening") hint = t("vd.run.speech.listening");
   else hint = "";
 
   return (
@@ -859,8 +881,8 @@ function AltGlyph({ dimension, value }: { dimension: string; value: string }) {
   return null;
 }
 
-function altLabel(dimension: string, value: string): string {
-  if (dimension === "color") return colorLabel(value);
-  if (dimension === "shape") return shapeLabel(value);
+function altLabel(dimension: string, value: string, t: Translate): string {
+  if (dimension === "color") return colorLabel(value, t);
+  if (dimension === "shape") return shapeLabel(value, t);
   return value;
 }
