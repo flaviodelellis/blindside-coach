@@ -120,6 +120,7 @@ export function TimingSection({
   nTrials,
   nTrialsDerived,
   exposureMs,
+  exposureBounds = { min: 50, max: 2000, step: 50 },
   itiMinMs,
   itiMaxMs,
   itiBounds = { min: 0, max: 10000, step: 50 },
@@ -132,6 +133,7 @@ export function TimingSection({
   /** When set, the trial count is derived (read-only) instead of editable. */
   nTrialsDerived?: string;
   exposureMs: number;
+  exposureBounds?: { min: number; max: number; step: number };
   itiMinMs: number;
   itiMaxMs: number;
   itiBounds?: { min: number; max: number; step: number };
@@ -166,9 +168,9 @@ export function TimingSection({
         <label htmlFor="exposure_ms">{t("ex.field.exposure")}</label>
         <NumberField
           id="exposure_ms"
-          min={50}
-          max={2000}
-          step={50}
+          min={exposureBounds.min}
+          max={exposureBounds.max}
+          step={exposureBounds.step}
           value={exposureMs}
           onChange={onExposureChange}
         />

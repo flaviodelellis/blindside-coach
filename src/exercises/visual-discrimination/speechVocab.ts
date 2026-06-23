@@ -135,9 +135,10 @@ export type CombinedVocab = {
  */
 export function buildCombinedVocab(
   colors: string[],
+  shapes: string[] = [...SHAPES],
   lang: SpeechVocabLang = "it",
 ): CombinedVocab {
-  const shape = buildVocab("shape", [...SHAPES], lang);
+  const shape = buildVocab("shape", shapes.length > 0 ? shapes : [...SHAPES], lang);
   const color = buildVocab("color", colors, lang);
   const flat = Array.from(new Set([...shape.flat, ...color.flat]));
   return { shape: shape.entries, color: color.entries, notSeen: shape.notSeen, flat };

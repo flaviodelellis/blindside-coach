@@ -32,6 +32,34 @@ export function filterWords(filter: WordFilter): WordEntry[] {
   });
 }
 
+/** Pseudowords matching the language and (optionally) the length range. */
+function filterPseudowords(filter: WordFilter): WordEntry[] {
+  return library.entries.filter((entry) => {
+    if (!entry.is_pseudoword) return false;
+    if (filter.language && filter.language !== "both" && entry.language !== filter.language) {
+      return false;
+    }
+    if (filter.lengthRange) {
+      const [min, max] = filter.lengthRange;
+      if (entry.length < min || entry.length > max) return false;
+    }
+    return true;
+  });
+}
+
+/**
+ * How many library words match the filter, split by kind. Used by the config
+ * form to warn (and block) before a run that would have no stimuli at all.
+ */
+export function availableWordCounts(
+  filter: WordFilter,
+): { real: number; pseudo: number } {
+  return {
+    real: filterWords({ ...filter, includePseudowords: false }).length,
+    pseudo: filterPseudowords(filter).length,
+  };
+}
+
 export function pickWords(
   filter: WordFilter,
   count: number,
@@ -39,11 +67,7 @@ export function pickWords(
   rng: () => number = Math.random,
 ): WordEntry[] {
   const reals = filterWords({ ...filter, includePseudowords: false });
-  const pseudos = library.entries.filter(
-    (e) =>
-      e.is_pseudoword &&
-      (!filter.language || filter.language === "both" || e.language === filter.language),
-  );
+  const pseudos = filterPseudowords(filter);
 
   const nPseudo = Math.round(count * pseudowordRatio);
   const nReal = count - nPseudo;

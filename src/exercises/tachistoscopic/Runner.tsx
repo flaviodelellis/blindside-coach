@@ -9,6 +9,7 @@ import { pickWords } from "../../lib/wordLibrary";
 import { makeRng } from "../../lib/rng";
 import { resolveDuration, resolvePosition } from "../../lib/runtime";
 import { useExerciseLoop } from "../shared/useExerciseLoop";
+import { useEdgeClamp } from "../shared/useEdgeClamp";
 import { useSpeechResponse, normalize } from "../../lib/speech";
 import { NOT_SEEN_PHRASES } from "../visual-discrimination/speechVocab";
 import { playBeep } from "../../lib/audio";
@@ -61,6 +62,15 @@ export function TachistoscopicRunner({
   }, [config]);
 
   const isClinician = config.response_mode !== "patient_types";
+
+  // Esc always exits — a safety hatch so a run can never trap the user.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
 
   const {
     phase,
@@ -122,6 +132,11 @@ export function TachistoscopicRunner({
     });
   };
 
+  // No stimuli matched the configuration — never silently blank the screen.
+  if (params.length === 0) {
+    return <EmptyPool onCancel={onCancel} />;
+  }
+
   if (phase === "instructions") {
     return (
       <Instructions
@@ -176,6 +191,23 @@ export function TachistoscopicRunner({
             onCancel={onCancel}
           />
         ))}
+    </div>
+  );
+}
+
+function EmptyPool({ onCancel }: { onCancel: () => void }) {
+  const t = useT();
+  return (
+    <div className="tach-host" style={{ background: "#fff", color: "#16171d" }}>
+      <div className="tach-instructions">
+        <h2>{t("tach.empty_pool.title")}</h2>
+        <p>{t("tach.empty_pool.body")}</p>
+        <div className="tach-controls">
+          <button type="button" onClick={onCancel}>
+            {t("common.back")}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -303,13 +335,20 @@ function WordDisplay({
   position: NormalizedPoint;
   config: Config;
 }) {
+  const { ref, transform } = useEdgeClamp<HTMLDivElement>([
+    word,
+    position.x,
+    position.y,
+    config.font_size_px,
+  ]);
   return (
     <div
+      ref={ref}
       style={{
         position: "fixed",
         left: `${position.x * 100}%`,
         top: `${position.y * 100}%`,
-        transform: "translate(-50%, -50%)",
+        transform,
         fontSize: config.font_size_px,
         fontFamily: config.font_family ?? "system-ui, sans-serif",
         color: config.text_color,

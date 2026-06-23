@@ -103,6 +103,8 @@ export type VisualDiscriminationExercise = {
     stimulus_kinds: DiscriminationStimulusKind[];
     stimulus_size_px: number;
     stimulus_colors: string[];
+    /** Shapes the operator chose to present. Absent → all shapes (legacy presets). */
+    stimulus_shapes?: string[];
     outline_color?: string;
     background_color: string;
     n_simultaneous: number;

@@ -121,6 +121,7 @@ const it: Dict = {
   "tach.field.length": "Lunghezza parole (lettere)",
   "tach.field.word_size": "Dimensione parole (px)",
   "tach.field.position": "Posizione stimoli",
+  "tach.pos.central": "Centrale",
   "tach.pos.peripheral_both": "Periferica",
   "tach.pos.peripheral_left": "Periferica sinistra",
   "tach.pos.peripheral_right": "Periferica destra",
@@ -135,6 +136,11 @@ const it: Dict = {
   "tach.placeholder.random_seed": "vuoto = casuale",
   "tach.grid.empty_error":
     "Seleziona almeno una cella nella griglia delle zone consentite, oppure scegli un'altra modalità di posizione.",
+  "tach.no_words.error":
+    "Nessuna parola disponibile in libreria per la lunghezza {len}. Aumenta l'intervallo di lunghezza, cambia lingua o usa una lista personalizzata.",
+  "tach.empty_pool.title": "Nessuno stimolo disponibile",
+  "tach.empty_pool.body":
+    "La configurazione scelta non corrisponde a nessuna parola in libreria. Torna indietro e modifica lunghezza, lingua o sorgente delle parole.",
 
   // tach runner: instructions
   "tach.run.title.clinician": "Tachistoscopia: modalità guidata",
@@ -269,6 +275,7 @@ const it: Dict = {
   "vd.color.green": "Verde",
   "vd.color.blue": "Blu",
   "vd.color.yellow": "Giallo",
+  "vd.field.shapes": "Forme da discriminare",
   "vd.field.position": "Posizione stimoli",
   "vd.pos.peripheral_both": "Periferica",
   "vd.pos.peripheral_left": "Periferica sinistra",
@@ -276,7 +283,8 @@ const it: Dict = {
   "vd.pos.central": "Centrale",
   "vd.pos.custom_grid": "Griglia personalizzata",
   "vd.field.allowed_regions": "Zone consentite",
-  "vd.validate.colors": "Seleziona almeno due colori da discriminare.",
+  "vd.validate.colors": "Seleziona almeno un colore da mostrare.",
+  "vd.validate.shapes": "Seleziona almeno una forma da mostrare.",
   "vd.validate.grid": "Seleziona almeno una cella nella griglia delle posizioni.",
   "vd.summary.live": "Riepilogo · live",
   "vd.summary.preview": "Anteprima stimolo",
@@ -537,6 +545,7 @@ const en: Dict = {
   "tach.field.length": "Word length (letters)",
   "tach.field.word_size": "Word size (px)",
   "tach.field.position": "Stimulus position",
+  "tach.pos.central": "Central",
   "tach.pos.peripheral_both": "Peripheral",
   "tach.pos.peripheral_left": "Peripheral left",
   "tach.pos.peripheral_right": "Peripheral right",
@@ -551,6 +560,11 @@ const en: Dict = {
   "tach.placeholder.random_seed": "blank = random",
   "tach.grid.empty_error":
     "Select at least one cell in the allowed-regions grid, or pick a different position mode.",
+  "tach.no_words.error":
+    "No library words available for length {len}. Widen the length range, change language, or use a custom list.",
+  "tach.empty_pool.title": "No stimuli available",
+  "tach.empty_pool.body":
+    "The chosen configuration matches no words in the library. Go back and adjust length, language, or word source.",
 
   "tach.run.title.clinician": "Tachistoscopy: clinician-paced",
   "tach.run.title.patient": "Tachistoscopy: patient mode",
@@ -676,6 +690,7 @@ const en: Dict = {
   "vd.color.green": "Green",
   "vd.color.blue": "Blue",
   "vd.color.yellow": "Yellow",
+  "vd.field.shapes": "Shapes to discriminate",
   "vd.field.position": "Stimulus position",
   "vd.pos.peripheral_both": "Peripheral",
   "vd.pos.peripheral_left": "Peripheral left",
@@ -683,7 +698,8 @@ const en: Dict = {
   "vd.pos.central": "Central",
   "vd.pos.custom_grid": "Custom grid",
   "vd.field.allowed_regions": "Allowed regions",
-  "vd.validate.colors": "Select at least two colours to discriminate.",
+  "vd.validate.colors": "Select at least one colour to show.",
+  "vd.validate.shapes": "Select at least one shape to show.",
   "vd.validate.grid": "Select at least one cell in the position grid.",
   "vd.summary.live": "Summary · live",
   "vd.summary.preview": "Stimulus preview",

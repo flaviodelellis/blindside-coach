@@ -9,6 +9,7 @@ import {
   type DiscriminationTrialParam,
 } from "./engine";
 import { useExerciseLoop } from "../shared/useExerciseLoop";
+import { useEdgeClamp } from "../shared/useEdgeClamp";
 import { useT } from "../../i18n";
 import { colorLabel, shapeLabel } from "./labels";
 import { useSpeechResponse, matchUtterance, type MatchOutcome } from "../../lib/speech";
@@ -253,13 +254,20 @@ function Fixation({ config }: { config: Config }) {
 }
 
 function StimulusFlash({ stim }: { stim: PresentedStimulus }) {
+  const { ref, transform } = useEdgeClamp<HTMLDivElement>([
+    stim.position_norm.x,
+    stim.position_norm.y,
+    stim.size_px,
+    stim.value,
+  ]);
   return (
     <div
+      ref={ref}
       style={{
         position: "fixed",
         left: `${stim.position_norm.x * 100}%`,
         top: `${stim.position_norm.y * 100}%`,
-        transform: "translate(-50%, -50%)",
+        transform,
         width: stim.size_px,
         height: stim.size_px,
       }}
@@ -407,8 +415,13 @@ function CombinedResponsePanel({
   const submittedRef = useRef(false);
 
   const vocab = useMemo(
-    () => buildCombinedVocab(param.color_alternatives ?? [], vocabLang(config.speech_lang)),
-    [param.color_alternatives, config.speech_lang],
+    () =>
+      buildCombinedVocab(
+        param.color_alternatives ?? [],
+        param.shape_alternatives ?? [],
+        vocabLang(config.speech_lang),
+      ),
+    [param.color_alternatives, param.shape_alternatives, config.speech_lang],
   );
 
   const { status, transcript } = useSpeechResponse({
@@ -593,8 +606,13 @@ function PatientCombinedPanel({
 }) {
   const t = useT();
   const vocab = useMemo(
-    () => buildCombinedVocab(param.color_alternatives ?? [], vocabLang(config.speech_lang)),
-    [param.color_alternatives, config.speech_lang],
+    () =>
+      buildCombinedVocab(
+        param.color_alternatives ?? [],
+        param.shape_alternatives ?? [],
+        vocabLang(config.speech_lang),
+      ),
+    [param.color_alternatives, param.shape_alternatives, config.speech_lang],
   );
   const { status, transcript } = useSpeechResponse({
     active: true,

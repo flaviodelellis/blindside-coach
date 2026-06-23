@@ -45,6 +45,7 @@ type FormState = {
   dimension: DiscriminationDimension;
   stimulus_size_px: number;
   colors: { red: boolean; green: boolean; blue: boolean; yellow: boolean };
+  shapes: { circle: boolean; square: boolean; triangle: boolean; diamond: boolean };
   background_color: string;
   fixation_color: string;
   position: PositionChoice;
@@ -64,6 +65,7 @@ export const VD_DEFAULT_FORM: FormState = {
   dimension: "shape_color",
   stimulus_size_px: 80,
   colors: { red: true, green: true, blue: true, yellow: true },
+  shapes: { circle: true, square: true, triangle: true, diamond: true },
   background_color: "#000000",
   fixation_color: "#ffffff",
   position: "peripheral_both",
@@ -79,6 +81,20 @@ const COLOR_HEX: Record<keyof FormState["colors"], string> = {
   blue: DEFAULT_COLORS[2],
   yellow: DEFAULT_COLORS[3],
 };
+
+const SHAPE_KEYS = ["circle", "square", "triangle", "diamond"] as const;
+
+/** Tiny neutral glyph for the shape-selection checkboxes. */
+function ShapeSwatchSvg({ shape }: { shape: string }) {
+  return (
+    <svg viewBox="0 0 100 100" width="100%" height="100%" aria-hidden>
+      {shape === "square" && <rect x="8" y="8" width="84" height="84" fill="currentColor" />}
+      {shape === "triangle" && <polygon points="50,8 95,92 5,92" fill="currentColor" />}
+      {shape === "diamond" && <polygon points="50,5 95,50 50,95 5,50" fill="currentColor" />}
+      {shape === "circle" && <circle cx="50" cy="50" r="45" fill="currentColor" />}
+    </svg>
+  );
+}
 
 function positionFromForm(form: FormState): PositionMode {
   switch (form.position) {
@@ -101,11 +117,19 @@ function selectedColorCount(form: FormState): number {
   ).length;
 }
 
+function selectedShapeCount(form: FormState): number {
+  return SHAPE_KEYS.filter((s) => form.shapes[s]).length;
+}
+
 /** Returns an i18n error key if the form is not ready, otherwise null. */
 function validateForm(form: FormState): string | null {
-  // Combined and colour tasks need at least two colours to be a real choice.
-  if (form.dimension !== "shape" && selectedColorCount(form) < 2) {
+  // A colour is involved in colour and combined tasks; a shape in shape and
+  // combined tasks. At least one of each relevant attribute must be selected.
+  if (form.dimension !== "shape" && selectedColorCount(form) < 1) {
     return "vd.validate.colors";
+  }
+  if (form.dimension !== "color" && selectedShapeCount(form) < 1) {
+    return "vd.validate.shapes";
   }
   if (
     form.position === "custom_grid" &&
@@ -121,6 +145,9 @@ export function configFromForm(form: FormState): Config {
     .filter((c) => form.colors[c])
     .map((c) => COLOR_HEX[c]);
 
+  // Legacy presets/prescriptions may lack `shapes` — fall back to all shapes.
+  const shapes = SHAPE_KEYS.filter((s) => form.shapes?.[s]);
+
   const kinds =
     form.dimension === "shape"
       ? (["shape"] as const)
@@ -133,6 +160,7 @@ export function configFromForm(form: FormState): Config {
     stimulus_kinds: [...kinds],
     stimulus_size_px: form.stimulus_size_px,
     stimulus_colors: colors.length > 0 ? colors : [...DEFAULT_COLORS],
+    stimulus_shapes: shapes.length > 0 ? [...shapes] : [...SHAPES],
     background_color: form.background_color,
     n_simultaneous: 1,
     position_mode: positionFromForm(form),
@@ -300,6 +328,32 @@ export function VDConfigBody({
                     </div>
                   </div>
                 )}
+
+                {form.dimension !== "color" && (
+                  <div className="form-row full">
+                    <label>{t("vd.field.shapes")}</label>
+                    <div className="multi-check">
+                      {SHAPE_KEYS.map((s) => (
+                        <label key={s}>
+                          <input
+                            type="checkbox"
+                            checked={form.shapes[s]}
+                            onChange={(e) =>
+                              update("shapes", {
+                                ...form.shapes,
+                                [s]: e.target.checked,
+                              })
+                            }
+                          />
+                          <span className="vd-shape-swatch" aria-hidden>
+                            <ShapeSwatchSvg shape={s} />
+                          </span>
+                          {t(`vd.shape.${s}`)}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </section>
 
               <PositionSection
@@ -320,6 +374,7 @@ export function VDConfigBody({
               <TimingSection
                 nTrials={form.n_trials}
                 exposureMs={form.exposure_ms}
+                exposureBounds={{ min: 50, max: 10000, step: 50 }}
                 itiMinMs={form.iti_min_ms}
                 itiMaxMs={form.iti_max_ms}
                 itiBounds={{ min: 200, max: 5000, step: 50 }}
@@ -384,10 +439,10 @@ export function VDLiveSummary({
         })}`
       : form.dimension === "shape"
         ? `${t("vd.dim.shape")} · ${t("vd.summary.stimuli.shape", {
-            n: SHAPES.length,
+            n: selectedShapeCount(form),
           })}`
         : t("vd.summary.stimuli.shape_color", {
-            shapes: SHAPES.length,
+            shapes: selectedShapeCount(form),
             colors: selectedColorCount(form),
           });
 

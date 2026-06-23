@@ -29,10 +29,16 @@ export type DiscriminationTrialParam = {
   iti_ms: number;
 };
 
+/** The shapes the operator chose to present (defaults to all for legacy presets). */
+export function shapesFor(config: Config): string[] {
+  const chosen = config.stimulus_shapes;
+  return chosen && chosen.length > 0 ? chosen : [...SHAPES];
+}
+
 /** Probability of a correct forced-choice guess by pure chance for a dimension. */
 export function chanceLevel(config: Config): number {
   if (config.discrimination_dimension === "shape_color") {
-    const n = SHAPES.length * config.stimulus_colors.length;
+    const n = shapesFor(config).length * config.stimulus_colors.length;
     return n > 0 ? 1 / n : 0;
   }
   const n = alternativesFor(config).length;
@@ -46,7 +52,7 @@ export function alternativesFor(config: Config): string[] {
       return config.stimulus_colors;
     case "shape":
     case "shape_color":
-      return [...SHAPES];
+      return shapesFor(config);
   }
 }
 
@@ -55,6 +61,7 @@ export function buildDiscriminationTrials(config: Config): DiscriminationTrialPa
   const rng = makeRng(config.random_seed);
   const dimension = config.discrimination_dimension;
   const alternatives = alternativesFor(config);
+  const shapes = shapesFor(config);
 
   return Array.from({ length: config.n_trials }, (_, i) => {
     const exposure_ms = Math.round(resolveDuration(config.exposure, rng));
@@ -77,7 +84,7 @@ export function buildDiscriminationTrials(config: Config): DiscriminationTrialPa
       };
       expected = color;
     } else if (dimension === "shape") {
-      const shape = SHAPES[Math.floor(rng() * SHAPES.length)];
+      const shape = shapes[Math.floor(rng() * shapes.length)];
       stimulus = {
         kind: "shape",
         value: shape,
@@ -88,7 +95,7 @@ export function buildDiscriminationTrials(config: Config): DiscriminationTrialPa
       expected = shape;
     } else {
       // shape_color: one coloured shape; the patient reports BOTH attributes.
-      const shape = SHAPES[Math.floor(rng() * SHAPES.length)];
+      const shape = shapes[Math.floor(rng() * shapes.length)];
       const color =
         config.stimulus_colors[Math.floor(rng() * config.stimulus_colors.length)];
       stimulus = {
@@ -110,7 +117,7 @@ export function buildDiscriminationTrials(config: Config): DiscriminationTrialPa
       alternatives,
       expected_shape,
       expected_color,
-      shape_alternatives: dimension === "shape_color" ? [...SHAPES] : undefined,
+      shape_alternatives: dimension === "shape_color" ? shapes : undefined,
       color_alternatives:
         dimension === "shape_color" ? config.stimulus_colors : undefined,
       exposure_ms,

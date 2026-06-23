@@ -626,6 +626,13 @@ details.form-section-collapsible[open] > summary::after {
   display: inline-block;
 }
 
+.vd-shape-swatch {
+  width: 1.1rem;
+  height: 1.1rem;
+  display: inline-flex;
+  color: var(--text-h);
+}
+
 .custom-words-input {
   width: 100%;
   resize: vertical;

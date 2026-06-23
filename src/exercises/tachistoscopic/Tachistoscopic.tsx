@@ -21,6 +21,7 @@ import {
   type PreviewPoint,
 } from "../../components/AppearancePreview";
 import { BackButton } from "../../components/BackButton";
+import { availableWordCounts } from "../../lib/wordLibrary";
 import { LanguageToggle, useT } from "../../i18n";
 import {
   PositionSection,
@@ -33,6 +34,7 @@ import "./Tachistoscopic.css";
 type Config = TachistoscopicExercise["config"];
 
 type PositionChoice =
+  | "central"
   | "peripheral_left"
   | "peripheral_right"
   | "peripheral_both"
@@ -97,6 +99,8 @@ function parseCustomWords(text: string): string[] {
 /** Representative stimulus positions (normalized) for the appearance preview. */
 function previewPoints(form: FormState): PreviewPoint[] {
   switch (form.position) {
+    case "central":
+      return [{ x: 0.5, y: 0.5 }];
     case "peripheral_left":
       return [{ x: 0.2, y: 0.5 }];
     case "peripheral_right":
@@ -123,6 +127,8 @@ function previewPoints(form: FormState): PreviewPoint[] {
 
 function positionFromForm(form: FormState): PositionMode {
   switch (form.position) {
+    case "central":
+      return { kind: "central" };
     case "peripheral_left":
       return { kind: "peripheral", side: "left" };
     case "peripheral_right":
@@ -180,6 +186,28 @@ export type RunOutcome = {
   sessionFile: SessionFile;
 };
 
+/**
+ * How many library words match the form's language + length filter, split by
+ * kind. Pseudowords only count when the form includes them.
+ */
+function libraryWordsAvailable(form: FormState): { real: number; pseudo: number } {
+  const counts = availableWordCounts({
+    language: form.language,
+    lengthRange: [form.length_min, form.length_max],
+  });
+  return {
+    real: counts.real,
+    pseudo: form.include_pseudowords ? counts.pseudo : 0,
+  };
+}
+
+/** True when the library source yields no usable words for the chosen filter. */
+function tachNoLibraryWords(form: FormState): boolean {
+  if (form.word_source !== "library") return false;
+  const { real, pseudo } = libraryWordsAvailable(form);
+  return real + pseudo === 0;
+}
+
 /** Whether the form has a blocking issue that should disable "Start". */
 export function tachCannotStart(form: FormState): boolean {
   const gridEmpty =
@@ -187,7 +215,7 @@ export function tachCannotStart(form: FormState): boolean {
     gridToPositionMode(form.position_grid) === null;
   const customEmpty =
     form.word_source === "custom" && parseCustomWords(form.custom_words).length === 0;
-  return gridEmpty || customEmpty;
+  return gridEmpty || customEmpty || tachNoLibraryWords(form);
 }
 
 /** Assemble the downloadable session file from a completed run. */
@@ -256,6 +284,7 @@ export function TachConfigBody({
 
   const customWordCount = parseCustomWords(form.custom_words).length;
   const customEmpty = form.word_source === "custom" && customWordCount === 0;
+  const noLibraryWords = tachNoLibraryWords(form);
 
   return (
     <div className="form-main">
@@ -395,6 +424,7 @@ export function TachConfigBody({
             <PositionSection
               value={form.position}
               grid={form.position_grid}
+              includeCentral
               onValueChange={(v) => update("position", v as PositionChoice)}
               onGridChange={(g) => update("position_grid", g)}
             />
@@ -440,6 +470,16 @@ export function TachConfigBody({
           {customEmpty && (
             <div className="validation-error">
               {t("tach.custom_words.empty_error")}
+            </div>
+          )}
+          {noLibraryWords && (
+            <div className="validation-error">
+              {t("tach.no_words.error", {
+                len:
+                  form.length_min === form.length_max
+                    ? `${form.length_min}`
+                    : `${form.length_min}–${form.length_max}`,
+              })}
             </div>
           )}
     </div>
